@@ -35,7 +35,7 @@ Use the DVRUI_ENABLE environment variable to choose how much of the UI runs:
 | --------| ------- |
 | full (default) | The whole UI - Dashboard, Recordings (with the series pages and their actions) and Diagnostics |
 | minimal | The Dashboard and Diagnostics only |
-| none | No UI at all - NGINX and PHP FPM are not started, the container just runs the record engine |
+| none | No UI at all - NGINX and PHP FPM are not started, the container just runs the record engine. DVRUI_PORT and DVRUI_TZ aren't needed (PUID/PGID still apply to the engine) |
 
 You can override the user ID and group ID used by the container processes by setting the PUID/PGID to match a user on your system.
 By default NGINX will run as a user 'nginx'' and PHP as 'nobody' while the DVR will run simply as root or mapped if you use the --user settings of docket.
@@ -56,7 +56,7 @@ Yes it would be useful to maintain the Storage UUID in the dvr.conf, but is safe
 | --------| ------- |
 | DVRUI_PORT | Override the default port of 80 for the embedded NGINX Server |
 | PUID | Override the default user ID for the DVR |
-| PGID | Override the default group ID for the DVR |
+| PGID | Override the default group ID for the DVR (used along with PUID) |
 | DVRUI_TZ | Set the PHP timezone for the UI, e.g. Europe/Lisbon (defaults to UTC) |
 | DVRUI_ENABLE | How much of the UI to run: none, minimal (Dashboard and Diagnostics) or full (defaults to full) |
 
@@ -70,6 +70,19 @@ docker run -d --name dvr \
   -e PGID=1000 \
   -e DVRUI_TZ=Europe/Lisbon \
   -e DVRUI_ENABLE=full \
+  -v /path/to/hdhomerun/tempdata:/dvrdata \
+  -v /path/to/hdhomerun/recordings:/dvrrec \
+  demonrik/hdhrdvr-docker
+```
+
+### Minimal Example (record engine only)
+With DVRUI_ENABLE=none there is no UI or web server, so DVRUI_PORT and DVRUI_TZ aren't needed - just the volumes
+(add PUID/PGID if the engine should run as a particular user):
+```
+docker run -d --name dvr \
+  --restart=unless-stopped \
+  --network host \
+  -e DVRUI_ENABLE=none \
   -v /path/to/hdhomerun/tempdata:/dvrdata \
   -v /path/to/hdhomerun/recordings:/dvrrec \
   demonrik/hdhrdvr-docker

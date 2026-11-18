@@ -1,7 +1,7 @@
 <?php
 final class DVRUI_Vars 
 {
-	const DVRUI_version	="3.1.0";
+	const DVRUI_version	="3.1.1";
 	const DVRUI_name    ="HDHR-DVR Manager";
 	const DVRUI_author	="Rik Dunphy";
 	const DVRUI_email   ="rik.dunphy@gmail.com";

@@ -113,10 +113,11 @@ validate_php() {
         echo "INFO: PHP FPM config file is missing, pulling from defaults..."
         cp ${DEFAULTS_DIR}/php-fpm.conf ${CONF_DIR_PHP}/php-fpm.conf
     fi
-    if [ ! -f "${CONF_DIR_PHP}/php-fpm-www.conf" ] ; then
-        echo "INFO: PHP WWW Server config file is missing, pulling from defaults..."
-        cp ${DEFAULTS_DIR}/php-fpm-www.conf ${CONF_DIR_PHP}/www.conf
-    fi
+    # The pool config is refreshed from the defaults on every start, so the PUID/PGID
+    # user changes (update_php_user) are always applied to a clean copy - e.g. removing
+    # PUID later goes back to the default user rather than a dvr user that's gone
+    echo "INFO: PHP WWW Server config - refreshing from defaults..."
+    cp ${DEFAULTS_DIR}/php-fpm-www.conf ${PHP_WWW_CONF}
     if [ ! -f "${CONF_DIR_PHP}/php.ini" ] ; then
         echo "INFO: PHP ini file is missing, pulling from defaults..."
         cp ${DEFAULTS_DIR}/php.ini-rel ${CONF_DIR_PHP}/php.ini
@@ -211,20 +212,27 @@ fix_permissions() {
 }
 
 # Check we have valid configuration - and create/patch up files if missing
+# (the NGINX and PHP config only when the UI is enabled)
 validate_config() {
     validate_links
     validate_dvr
-    validate_nginx
-    validate_php
+    if [ "${DVRUI_WEB_AUTOSTART}" = "true" ] ; then
+        validate_nginx
+        validate_php
+    fi
 }
 
-# Check the UID/GID env settings
+# Check the UID/GID env settings - the DVR user is for the record engine too,
+# NGINX/PHP only need updating when the UI is enabled.
+# (PGID is only used along with PUID - the dvr user is created from PUID)
 update_user() {
-    if [ ! -z "${PUID}" ] || [ ! -z "${PGID}"] ; then
+    if [ -n "${PUID}" ] ; then
         create_dvr_user
-        update_nginx_user
-        update_php_user
-        fix_permissions
+        if [ "${DVRUI_WEB_AUTOSTART}" = "true" ] ; then
+            update_nginx_user
+            update_php_user
+            fix_permissions
+        fi
     fi
 }
 
@@ -303,10 +311,15 @@ echo ""
 echo "************************************************"
 echo ""
 
+# DVRUI_ENABLE first - with none, the UI setup (and DVRUI_PORT, DVRUI_TZ) is skipped
+update_ui_enable
 validate_config
 update_user
-update_nginx_port
-update_php_tz
-update_ui_enable
+if [ "${DVRUI_WEB_AUTOSTART}" = "true" ] ; then
+    update_nginx_port
+    update_php_tz
+else
+    echo "INFO: UI disabled - DVRUI_PORT and DVRUI_TZ are not used"
+fi
 start_supervisord
 

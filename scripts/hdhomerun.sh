@@ -174,7 +174,7 @@ patch_permissions()
 start_engine()
 {
 	echo ${DVR_PFX} "** Starting the DVR Engine"
-    if [ ! -z "${PUID}" ] || [ ! -z "${PGID}"] ; then
+    if [ -n "${PUID}" ] ; then   # PGID is only used along with PUID
 		patch_permissions
 		/usr/bin/getent passwd ${PUID} > /dev/null
 	    if [ $? -eq 0 ] ; then
