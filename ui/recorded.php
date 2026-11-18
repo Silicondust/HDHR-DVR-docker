@@ -273,28 +273,15 @@
 	}
 
 	/*
-	 * Recording time in the UI's timezone (DVRUI_TZ, applied to php.ini date.timezone)
-	 * Within the last week (today and the 6 days before, by calendar day so a day name
-	 * never repeats): day and time ("Wed 21:00"), older: date and time ("26 Aug 2024 01:59")
+	 * Recording time in the UI's timezone (DVRUI_TZ, applied to php.ini date.timezone):
+	 * the day as dvruiRelativeDay gives it, plus the time - "Today 21:00", "Tue 21:00"
+	 * for the 7 days before, older "26 Aug 2024 01:59" ("Aug 26 2024 01:59" for US timezones)
 	 */
 	function recordedDate($timestamp, $now = null) {
 		if ($timestamp <= 0) {
 			return '';
 		}
-		if ($now === null) {
-			$now = time();
-		}
-		$today = new DateTime('@' . $now);
-		$today->setTimezone(new DateTimeZone(date_default_timezone_get()));
-		$today->setTime(0, 0);
-		$day = new DateTime('@' . $timestamp);
-		$day->setTimezone(new DateTimeZone(date_default_timezone_get()));
-		$day->setTime(0, 0);
-		$daysAgo = (int)$today->diff($day)->format('%r%a') * -1;
-		if ($daysAgo < 7) {
-			return date('D H:i', $timestamp);
-		}
-		return date('j M Y H:i', $timestamp);
+		return dvruiRelativeDay(new DateTime('@' . $timestamp), $now) . ' ' . date('H:i', $timestamp);
 	}
 
 	// First non-empty value of the given keys

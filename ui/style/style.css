@@ -87,11 +87,12 @@ img.alignleft {
 img.aligntop {
   margin: 5px 0 20px 0;
 }
+/* no side padding, so the menu bar and sections line up with the logo bar
+ * (side padding on top of width: 100% pushed them 5px right of it) */
 #page {
   position: relative;
   margin: 0px;
-  padding: 5px;
-  width: 100%;
+  padding: 5px 0;
 }
 #dashboard_page {
   position: relative;
@@ -405,12 +406,15 @@ input[type="text"]:focus {
   font-style: italic;
   color: red;
 }
+/* rounded to match the page sections; overflow: hidden clips a highlighted end item
+ * to the rounded outer corners, while edges between items stay straight */
 ul.tabmenu {
   list-style-type: none;
   margin: 0;
   padding: 0;
   overflow: hidden;
   border: none;
+  border-radius: 5px;
   background: #172131;
 }
 ul.tabmenu li {
@@ -435,16 +439,25 @@ a.active {
 .tabcontent {
   display: hidden;
 }
+/* content area stays 240x240; the padding (10px top for the image, 10px each side
+ * for the text) makes the card taller and wider to fit it */
 #hdhr_entry {
   border-top: dotted 1px #C5CDD8;
   background: #1e2a3c;
   width: 240px;
   height: 240px;
+  padding: 10px 10px 0 10px;
   border: solid 1px #111;
+  border-radius: 6px;
   Text-color: #DDD;
   box-shadow: 5px 5px 5px #000;
   margin: 5px;
   display: inline-block;
+}
+/* the record engine running in this container */
+#hdhr_entry.hdhr_entry_local {
+  background: #3a4f6e;
+  border: solid 1px #5577a0;
 }
 #hdhr_img {
   display: block;
@@ -585,17 +598,22 @@ a.active {
   border-radius: 5px;
   border-style: groove;
 }
-#dashboard_server_container {
-  height: 265px;
+/* parameters and the update button side by side - the button stretches to
+ * exactly the height of the parameters */
+#dashboard_server_row {
+  display: flex;
+  align-items: stretch;
+  gap: 15px;
 }
 #dashboard_logs_container {
   height: 400px;
 }
+/* sized to the cards - the bottom padding keeps their drop shadow from being clipped */
 #dashboard_hdhr_container {
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
-  height: 300px;
+  padding-bottom: 6px;
 }
 .dashboard_server h4,
 .dashboard_hdhr h4,
@@ -604,11 +622,16 @@ a.active {
   margin: 0px 0px 5px 0px;
 }
 #dashboard_params {
-  width: 80%;
+  flex: 1;
+  min-width: 0;
+}
+/* no gap under the last parameter, so the button ends level with it */
+#dashboard_params > #server_cfg_entry:last-of-type {
+  margin-bottom: 0;
 }
 #dashboard_ctrls {
-  float: right;
-  width: 180px;
+  flex: 0 0 120px;
+  display: flex;
 }
 #server_cfg_entry {
   height: 25px;
@@ -653,31 +676,32 @@ textarea.server_param {
 ul.dashboard_ctrls_list {
   position: relative;
   list-style-type: none;
-  margin: 20px;
+  margin: 0;
   padding: 0;
-  overflow: hidden;
   border: none;
   text-align: center;
+  flex: 1;
+  display: flex;
 }
 ul.dashboard_ctrls_list li {
   list-style-type: none;
-  float: left;
-  margin: 2px;
+  margin: 0;
+  flex: 1;
+  display: flex;
 }
 ul.dashboard_ctrls_list li a {
   background-color: #1e2a3c;
   color: #1e2a3c;
-  display: table-cell;
+  display: block;
   text-align: center;
   text-decoration: none;
   transition: 0.1s;
   font-size: 20px;
-  border-radius: 5px 5px 5px 5px;
+  border-radius: 8px;
   box-shadow: 2px 2px 2px black;
   border: solid 1px #172131;
-  width: 100px;
-  height: 250px;
-  vertical-align: middle;
+  flex: 1;
+  box-sizing: border-box;
 }
 .dashboard_ctrl_link_icon {
   background-size: 50px;
@@ -685,7 +709,7 @@ ul.dashboard_ctrls_list li a {
   background-position: center center;
 }
 ul.dashboard_ctrls_list li a.dashboard_ctrl_link_update {
-  background-size: 50px;
+  background-size: 36px;
   background-repeat: no-repeat;
   background-position: center center;
   background-image: url("../images/hdhr_icons_update.png");

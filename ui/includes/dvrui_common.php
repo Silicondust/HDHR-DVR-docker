@@ -70,6 +70,78 @@
 		return $results;
 	}
 
+	/*
+	 * Whether dates should be written month first ("Nov 18 2026") for the UI's
+	 * timezone (DVRUI_TZ, applied to php.ini date.timezone). Only US timezones are
+	 * month first - everywhere else uses day first ("18 Nov 2026").
+	 */
+	function dvruiMonthFirst($tz = null) {
+		if ($tz === null) {
+			$tz = date_default_timezone_get();
+		}
+		if (strpos($tz, 'US/') === 0) {
+			return true;
+		}
+		$us = array('America/New_York', 'America/Detroit', 'America/Chicago', 'America/Denver',
+			'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'America/Juneau',
+			'America/Sitka', 'America/Yakutat', 'America/Nome', 'America/Metlakatla', 'America/Adak',
+			'America/Boise', 'America/Menominee', 'Pacific/Honolulu', 'EST5EDT', 'CST6CDT',
+			'MST7MDT', 'PST8PDT');
+		return in_array($tz, $us)
+			|| strpos($tz, 'America/Indiana/') === 0
+			|| strpos($tz, 'America/Kentucky/') === 0
+			|| strpos($tz, 'America/North_Dakota/') === 0;
+	}
+
+	// A date without the day name, in the order used for the UI's timezone
+	function dvruiDateFormat() {
+		return dvruiMonthFirst() ? 'M j Y' : 'j M Y';
+	}
+
+	/*
+	 * Readable day for a date (a DateTime at any time of that day, in the UI timezone):
+	 * "Today", the short day name for the 7 days before ("Tue", "Mon", ... including
+	 * last week's same day, as today is shown as "Today"), otherwise the date
+	 * ("18 Nov 2026", or "Nov 18 2026" for US timezones). Counted by calendar day.
+	 */
+	function dvruiRelativeDay($date, $now = null) {
+		$tz = new DateTimeZone(date_default_timezone_get());
+		$day = clone $date;
+		$day->setTimezone($tz);
+		$day->setTime(0, 0);
+		$today = new DateTime('@' . (($now === null) ? time() : $now));
+		$today->setTimezone($tz);
+		$today->setTime(0, 0);
+		$daysAgo = (int)$day->diff($today)->format('%r%a');
+		if ($daysAgo == 0) {
+			return 'Today';
+		}
+		if ($daysAgo > 0 && $daysAgo <= 7) {
+			return $day->format('D');
+		}
+		return $day->format(dvruiDateFormat());
+	}
+
+	/*
+	 * Readable label for a record engine log file named yyyymmdd (see dvruiRelativeDay).
+	 * The engine names its logs by the UTC date, which can be ahead of the date in the
+	 * UI timezone (e.g. evenings in the Americas) - a log dated after today is "Today".
+	 * Anything that isn't a valid yyyymmdd date is returned unchanged.
+	 */
+	function dvruiLogDate($yyyymmdd, $now = null) {
+		$tz = new DateTimeZone(date_default_timezone_get());
+		$day = DateTime::createFromFormat('!Ymd', $yyyymmdd, $tz);
+		if ($day === false || $day->format('Ymd') !== $yyyymmdd) {
+			return $yyyymmdd;
+		}
+		$today = new DateTime('@' . (($now === null) ? time() : $now));
+		$today->setTimezone($tz);
+		if ($yyyymmdd > $today->format('Ymd')) {
+			return 'Today';
+		}
+		return dvruiRelativeDay($day, $now);
+	}
+
 	function postToUrl($url, $vars) {
 		if (in_array('curl', get_loaded_extensions())){
 			$ch = curl_init();

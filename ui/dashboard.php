@@ -2,6 +2,7 @@
 	require_once("TinyAjaxBehavior.php");
 	require_once("vars.php");
 	require_once("statusmessage.php");
+	require_once("includes/dvrui_common.php");
 	require_once("includes/dvrui_recordengine_config.php");
 	require_once("includes/dvrui_recordengine_logfile.php");
 	require_once("includes/dvrui_recordengine_loglist.php");
@@ -75,7 +76,7 @@
 			$htmlStr = str_replace('<!-- dvrui_config_beta -->', $serverParamEntry, $htmlStr);
 
 		} else {
-			$htmlStr = "ERROR: Can't Parse Config File: " . $configFile->getConfigFileName();
+			$htmlStr = "ERROR: Can't Parse Config File: " . $serverConfig->getConfigFileName();
 		}
 		return $htmlStr;
 	}
@@ -102,10 +103,15 @@
 			$hdhr_data .= $hdhrEntry ;	
 		}
 
-		// Process Engines
+		// Process Engines - the engine in this container is highlighted
+		$serverConfig = new DVRUI_Engine_Config();
+		$myStorageID = $serverConfig->getStorageId();
 		$engines =  $hdhr->engine_count();
 		for ($i=0; $i < $engines; $i++) {
 			$hdhrEntry = file_get_contents('style/enginelist_entry.html');
+			$isLocal = (strcasecmp($hdhr->get_engine_storageId($i), $myStorageID) == 0);
+			$hdhrEntry = str_replace('<!--hdhr_local_class-->', $isLocal ? ' hdhr_entry_local' : '', $hdhrEntry);
+			$hdhrEntry = str_replace('<!--hdhr_local_title-->', $isLocal ? " title='Local record engine (this container)'" : '', $hdhrEntry);
 			$hdhr_device_data = "<a href=" . $hdhr->get_engine_baseurl($i) . ">" . $hdhr->get_engine_id($i) . "</a>";
 			$hdhr_storage_url = "<a href=" . $hdhr->get_engine_storageUrl($i) . ">" . $hdhr->get_engine_storageUrl($i) . "</a>";
 			$hdhr_name_data = str_replace("HDHomeRun", "HDHomeRun <br>", $hdhr->get_engine_modelname($i));
@@ -149,7 +155,9 @@
 					for ($i = $logList->getListLength() - 1 ; $i >= 0 ; $i--) {
 						$logfile = basename($logList->getNextLogFile($i),'.log');
 						$logfullname = $logList->getNextLogFile($i);
-						$logEntry = str_replace('<!--logfile-name -->',$logfile,$logListEntry);
+						// show a readable date - the yyyymmdd file name is kept as the tooltip
+						$logEntry = str_replace('<!--logfile-name -->',htmlspecialchars(dvruiLogDate($logfile)),$logListEntry);
+						$logEntry = str_replace('<!--logfile-title -->',htmlspecialchars($logfile, ENT_QUOTES),$logEntry);
 						$logEntry = str_replace('<!--logfile-fname -->',$logfullname,$logEntry);
 						$listStr .= $logEntry;
 					}
