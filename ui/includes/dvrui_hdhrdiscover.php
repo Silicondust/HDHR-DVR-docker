@@ -119,9 +119,10 @@ class DVRUI_HDHRdiscover {
 								|| strpos($addr['address'], '127.') === 0) {
 							continue;
 						}
-						$ip = ip2long($addr['address']);
-						$mask = ip2long($addr['netmask']);
-						$targets[] = long2ip(($ip & $mask) | (~$mask & 0xFFFFFFFF));
+						$bcast = $this->broadcast_address($addr['address'], $addr['netmask']);
+						if ($bcast !== null) {
+							$targets[] = $bcast;
+						}
 					}
 				}
 			}
@@ -129,6 +130,23 @@ class DVRUI_HDHRdiscover {
 		$targets[] = '255.255.255.255';
 		$targets[] = '127.0.0.1';
 		return array_values(array_unique($targets));
+	}
+
+	/*
+	 * Subnet broadcast address, worked out a byte at a time so it is also correct
+	 * on 32-bit PHP (e.g. arm/v7), where 0xFFFFFFFF does not fit in an int
+	 */
+	private function broadcast_address($address, $netmask) {
+		$ip = explode('.', $address);
+		$mask = explode('.', $netmask);
+		if (count($ip) != 4 || count($mask) != 4) {
+			return null;
+		}
+		$bcast = array();
+		for ($i = 0; $i < 4; $i++) {
+			$bcast[] = ((int)$ip[$i] & 0xFF) | (~(int)$mask[$i] & 0xFF);
+		}
+		return implode('.', $bcast);
 	}
 
 	/*
