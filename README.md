@@ -1,8 +1,8 @@
 # HDHR-DVR-docker
 Docker Wrapper for SiliconDust's HDHomeRun DVR Record Engine
 
-Image based no Alpine Linux https://alpinelinux.org/
-At this time the Ajax framework used is limited to PHP7 and thus the image will stick with Alpine 3.15 as 3.16 moves to PHP8 and removes PHP7
+Image based on Alpine Linux https://alpinelinux.org/
+The image uses Alpine 3.24 with PHP 8.5
 
 This container image built does not contain a binary of the silicondust record engine. It is assumed since the user has the ability to download the docker image then they have internet capability to get the latest engine - and thus the image contains a script to download the latest engine when the engine is started. Besides, you need internet for the DVR anyway.
 To update the engine stop the container and then start it again and it will get the latest.
@@ -14,9 +14,20 @@ thus run the container with the host network selected, i.e.
 --network host
 ```
 
+### Device Discovery
+The Management GUI discovers devices the way SiliconDust recommends:
+1. Tuners and record engines are found by local UDP broadcast (port 65001) using a native PHP
+   implementation of the HDHomeRun discovery protocol (the same protocol SiliconDust's
+   [libhdhomerun](https://github.com/Silicondust/libhdhomerun) uses), then each device's
+   `discover.json` is read. Legacy devices without an HTTP interface are skipped.
+2. The record engine in this container is queried directly on `http://127.0.0.1:<Port>/discover.json`.
+3. The cloud discovery service (`https://api.hdhomerun.com/discover`) is used as a fallback to find any
+   devices the broadcast did not reach. Set `DVRUI_cloudDiscover` to `false` in `ui/vars.php` to disable it.
+
 In addition to the DVR engine, the container also has an embedded NGINX web server with PHP FPM configured to deliver a simple Management GUI.
 By default the Web server will run on Port 80. Use the DVRUI_PORT environment variable to move this
 to a free port in the case where there is a conflict with another container, or the host.
+Avoid ports that browsers block as unsafe (e.g. 10080 gives ERR_UNSAFE_PORT in Chrome, Edge, Vivaldi and Firefox).
 
 You can override the user ID and group ID used by the container processes by setting the PUID/PGID to match a user on your system.
 By default NGINX will run as a user 'nginx'' and PHP as 'nobody' while the DVR will run simply as root or mapped if you use the --user settings of docket.
@@ -38,15 +49,17 @@ Yes it would be useful to maintain the Storage UUID in the dvr.conf, but is safe
 | DVRUI_PORT | Override the default port of 80 for the embedded NGINX Server |
 | PUID | Override the default user ID for the DVR |
 | PGID | Override the default group ID for the DVR |
+| DVRUI_TZ | Set the PHP timezone for the UI, e.g. Europe/Lisbon (defaults to UTC) |
 
 ## Docker Run Example
 ```
 docker run -d --name dvr \
   --restart=unless-stopped \
   --network host \
-  -e DVRUI_PORT=10080 \
+  -e DVRUI_PORT=18080 \
   -e PUID=1000 \
   -e PGID=1000 \
+  -e DVRUI_TZ=Europe/Lisbon \
   -v /path/to/hdhomerun/tempdata:/dvrdata \
   -v /path/to/hdhomerun/recordings:/dvrrec \
   demonrik/hdhrdvr-docker

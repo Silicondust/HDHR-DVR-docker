@@ -38,7 +38,7 @@ class TinyAjaxBehavior
 			$val = str_replace("|", "!!pipe!!", $val);
 			$val = str_replace("~", "!!tilde!!", $val);
 			if(!$this->mUtf8) {
-				$val = utf8_encode($val);
+				$val = mb_convert_encoding($val, 'UTF-8', 'ISO-8859-1');
 			}
 			
 			$this->behavior .= $val;
@@ -79,10 +79,9 @@ abstract class Tab{
 
 	abstract protected function getScript();
 
-	public static function getBehavior() { 
-		return ""; 
-	}
-	
+	// Subclasses implement: public static function getBehavior(...)
+	// (not declared here - PHP 8 requires matching signatures and each behavior takes different args)
+
 	public final function getFunctionName(){
 		return get_class($this);
 	}
@@ -101,14 +100,14 @@ abstract class Tab{
 class TabAlert extends Tab
 {
 	protected function getScript(){
-		return "function " . get_class() . "(data){
+		return "function " . get_class($this) . "(data){
 			alert(data[1]);
 		}
 		";
 	}
 
 	public static function getBehavior($data) {
-		return array(get_class(), $data);
+		return array(static::class, $data);
 	}
 }
 
@@ -123,7 +122,7 @@ class TabSetValue extends Tab
 	}
 
 	public static function getBehavior($form_id, $data) {
-		return array(get_class(), $form_id, $data);
+		return array(static::class, $form_id, $data);
 	}
 }
 
@@ -136,7 +135,7 @@ class TabInnerHtml extends Tab
 	}
 
 	public static function getBehavior($form_id, $data) {
-		return array(get_class() , $form_id,  $data);
+		return array(static::class, $form_id,  $data);
 	}
 }
 
@@ -149,7 +148,7 @@ class TabInnerHtmlPrepend extends Tab
 	}
 
 	public static function getBehavior($form_id, $data) {
-		return array(get_class(), $form_id, $data);
+		return array(static::class, $form_id, $data);
 	}
 }
 class TabInnerHtmlAppend extends Tab
@@ -161,7 +160,7 @@ class TabInnerHtmlAppend extends Tab
 	}
 
 	public static function getBehavior($form_id, $data) {
-		return array(get_class(), $form_id, $data);
+		return array(static::class, $form_id, $data);
 	}
 }
 
@@ -178,7 +177,7 @@ class TabAddOption extends Tab
 
 	public static function getBehavior($element_id, $id, $value, $select_it = 0) {
 		$select_it ? 1 : 0;
-		return array(get_class(), $element_id, $id, $value, $select_it);
+		return array(static::class, $element_id, $id, $value, $select_it);
 	}
 
 }
@@ -193,7 +192,7 @@ class TabClearOptions extends Tab
 	}
 
 	public static function getBehavior($element_id) {
-		return array(get_class(), $element_id);
+		return array(static::class, $element_id);
 	}
 
 }
@@ -211,7 +210,7 @@ class TabRemoveSelectedOption extends Tab
 	}
 
 	public static function getBehavior($element_id) {
-		return array(get_class(), $element_id);
+		return array(static::class, $element_id);
 	}
 
 }
@@ -225,7 +224,7 @@ class TabSetWindowFocus extends Tab
 	}
 
 	public static function getBehavior() {
-		return array(get_class());
+		return array(static::class);
 	}
 
 }
@@ -243,7 +242,7 @@ class TabSetBackgroundColor extends Tab
 	}
 
 	public static function getBehavior($element_id, $color) {
-		return array(get_class(), $element_id, $color);
+		return array(static::class, $element_id, $color);
 	}
 	
 }
@@ -256,7 +255,7 @@ class TabRedirect extends Tab
 	}
 		
 	public static function getBehavior($location) {
-		return array(get_class(), $location);
+		return array(static::class, $location);
 	}
 	
 }
@@ -271,7 +270,7 @@ class TabEval extends Tab
 	}
 		
 	public static function getBehavior($scriptName) {
-		return array(get_class(), $scriptName);
+		return array(static::class, $scriptName);
 	}
 	
 }

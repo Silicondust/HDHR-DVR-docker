@@ -1,4 +1,4 @@
-FROM alpine:3.15.4
+FROM alpine:3.24.4
 WORKDIR /
 
 # Basics
@@ -8,17 +8,19 @@ RUN apk add --no-cache nginx supervisor wget grep curl sqlite shadow
 RUN mkdir -p /HDHomeRunDVR
 
 #Install PHP 
-RUN apk add --no-cache php7 \
-	php7-common \
-	php7-fpm \
-	php7-opcache \
-	php7-zip \
-	php7-curl \
-	php7-xml \
-	php7-json \
-	php7-fileinfo \
-	php7-dom \
-	php7-pdo_sqlite 
+# (opcache and json are built into PHP 8.5 core - no separate packages)
+RUN apk add --no-cache php85 \
+	php85-common \
+	php85-fpm \
+	php85-zip \
+	php85-curl \
+	php85-xml \
+	php85-mbstring \
+	php85-openssl \
+	php85-sockets \
+	php85-fileinfo \
+	php85-dom \
+	php85-pdo_sqlite
 
 #configure defaults
 RUN mkdir -p /HDHomeRunDVR/defaults
@@ -30,7 +32,7 @@ COPY config/supervisord.conf /etc/supervisor.d/supervisord.conf
 
 #Configure PHP
 RUN mkdir -p /run/php
-RUN touch /run/php/php7-fpm.pid
+RUN touch /run/php/php-fpm85.pid
 
 #Configure Nginx
 RUN mkdir -p /run/nginx
@@ -62,6 +64,9 @@ COPY VERSION /HDHomeRunDVR/VERSION
 
 # Set Volumes to be added
 VOLUME ["/dvrrec", "/dvrdata"]
+
+# Optional PHP timezone for the UI (e.g. Europe/Lisbon), applied at container start - defaults to UTC
+ENV DVRUI_TZ=""
 
 # Will use this port for mapping engine to the outside world
 EXPOSE 59090

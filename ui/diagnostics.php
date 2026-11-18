@@ -79,7 +79,8 @@
   	$htmlStr .= "---------- CONNECTIVITY CHECKS --------------------------------------------------<br/>";
   	$htmlStr .= 'DVRUI_apiurl = ' . DVRUI_Vars::DVRUI_apiurl . "<br/>";
   	$htmlStr .= 'Discover URL = ' . $myhdhrurl . "<br/>";
-  	$file      = fsockopen (parse_url($myhdhrurl, PHP_URL_HOST), 80, $errno, $errstr, 10);
+  	$apiport   = (parse_url($myhdhrurl, PHP_URL_SCHEME) == 'https') ? 443 : 80;
+  	$file      = fsockopen (parse_url($myhdhrurl, PHP_URL_HOST), $apiport, $errno, $errstr, 10);
   	if (! $file) {
   		$htmlStr .= 'Unable to open connection to ' . parse_url($myhdhrurl, PHP_URL_HOST) ;
   		$htmlStr .= '  Failed with error ' . $errno;
@@ -114,9 +115,15 @@
   function getHDHRDiag($hdhr) {
   	$devices =  $hdhr->device_count();
   	$hdhr_data = '';
-  	$htmlStr =  "---------- HDHR TUNERS-----------------------------------------------------------<br/>";
+  	$htmlStr =  "---------- HDHR DISCOVERY -------------------------------------------------------<br/>";
+  	foreach ($hdhr->get_discover_log() as $msg) {
+  		$htmlStr .= htmlspecialchars($msg) . "<br/>";
+  	}
+  	$htmlStr .=  "---------- HDHR TUNERS-----------------------------------------------------------<br/>";
   	for ($i=0; $i < $devices; $i++) {
   		$htmlStr .=  'tuner(' . $i . ') id: ' . $hdhr->get_device_id($i) . "<br/>";
+  		$htmlStr .=  'tuner(' . $i . ') found by: ' . $hdhr->get_device_source($i) . "<br/>";
+  		$htmlStr .=  'tuner(' . $i . ') local IP: ' . $hdhr->get_device_localip($i) . "<br/>";
   		$htmlStr .=  'tuner(' . $i . ') model: ' . $hdhr->get_device_model($i) . "<br/>";
   		$htmlStr .=  'tuner(' . $i . ') firmware: ' . $hdhr->get_device_firmware($i) . "<br/>";
   		$htmlStr .=  'tuner(' . $i . ') baseurl: ' . $hdhr->get_device_baseurl($i) . "<br/>";
@@ -125,14 +132,14 @@
   	
   	$htmlStr .=  "---------- HDHR DVR ENGINES------------------------------------------------------<br/>";
   	$engines = $hdhr->engine_count();
-  	$engines = 0;
   	for ($i=0; $i < $engines; $i++) {
-  		$htmlStr .=  'dvr(' . $i . ') name: ' . $hdhr->get_engine_name($i) . "<br/>";
-  		$htmlStr .=  'dvr(' . $i . ') version: ' . $hdhr->get_engine_version($i) . "<br/>";
-  		$htmlStr .=  'dvr(' . $i . ') discover URL: ' . $hdhr->get_engine_discoverURL($i) . "<br/>";
-  		$htmlStr .=  'dvr(' . $i . ') storage URL: ' . $hdhr->get_engine_storage_url($i) . "<br/>";
-  		$htmlStr .=  'dvr(' . $i . ') storage ID: ' . $hdhr->get_engine_storage_id($i) . "<br/>";
-  		$htmlStr .=  'dvr(' . $i . ') local IP: ' . $hdhr->get_engine_local_ip($i) . "<br/>";
+  		$htmlStr .=  'dvr(' . $i . ') name: ' . $hdhr->get_engine_modelname($i) . "<br/>";
+  		$htmlStr .=  'dvr(' . $i . ') version: ' . $hdhr->get_engine_firmware($i) . "<br/>";
+  		$htmlStr .=  'dvr(' . $i . ') found by: ' . $hdhr->get_engine_source($i) . "<br/>";
+  		$htmlStr .=  'dvr(' . $i . ') base URL: ' . $hdhr->get_engine_baseurl($i) . "<br/>";
+  		$htmlStr .=  'dvr(' . $i . ') storage URL: ' . $hdhr->get_engine_storageUrl($i) . "<br/>";
+  		$htmlStr .=  'dvr(' . $i . ') storage ID: ' . $hdhr->get_engine_storageId($i) . "<br/>";
+  		$htmlStr .=  'dvr(' . $i . ') local IP: ' . $hdhr->get_engine_localip($i) . "<br/>";
   	}
 		return $htmlStr;
   }
@@ -171,18 +178,65 @@
   function getSeriesDiag($hdhr) {
   	$htmlStr =  "------------ DVR  Series ------------------------------------------------------<br/>";
  	  $seriesURL = $hdhr->get_storage_url() . '?DisplayGroupID=root';
- 		$htmlStr .=  $seriesURL;
+ 		$htmlStr .=  'Series URL = ' . htmlspecialchars($seriesURL) . '<br/>';
  		$seriesjson = getJsonFromURL($seriesURL);
- 		$htmlStr .=  print_r($seriesjson,true). '<br/>'; 
+ 		if (!is_array($seriesjson)) {
+ 			return $htmlStr . 'No series data returned<br/>';
+ 		}
+ 		$htmlStr .= 'Series count = ' . count($seriesjson) . '<br/>';
+ 		foreach (array_values($seriesjson) as $i => $series) {
+ 			$htmlStr .= 'series(' . $i . ') ' . formatDiagEntry($series) . '<br/>';
+ 		}
 		return $htmlStr;
+  }
+
+  // One line per entry: key=value pairs, nested values as JSON
+  function formatDiagEntry($entry) {
+  	if (!is_array($entry)) {
+  		return htmlspecialchars((string)$entry);
+  	}
+  	$fields = array();
+  	foreach ($entry as $key => $val) {
+  		$fields[] = htmlspecialchars($key . '=' . formatDiagValue($val));
+  	}
+  	return implode(', ', $fields);
+  }
+
+  // Scalars as text, nested values as compact JSON
+  function formatDiagValue($val) {
+  	if (is_array($val)) {
+  		return json_encode($val, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  	}
+  	if (is_bool($val)) {
+  		return $val ? 'true' : 'false';
+  	}
+  	return (string)$val;
   }
 
   function getRecordingsDiag($hdhr) {
   	$htmlStr =  "------------ DVR  Recordings ------------------------------------------------------<br/>";
- 	  $seriesURL = $hdhr->get_storage_url();
- 		$htmlStr .=  $seriesURL;
- 		$seriesjson = getJsonFromURL($seriesURL);
- 		$htmlStr .=  print_r($seriesjson,true). '<br/>'; 
+ 	  $recordingsURL = $hdhr->get_storage_url();
+ 		$htmlStr .=  'Recordings URL = ' . htmlspecialchars($recordingsURL) . '<br/>';
+ 		$recordingsjson = getJsonFromURL($recordingsURL);
+ 		if (!is_array($recordingsjson)) {
+ 			return $htmlStr . 'No recordings data returned<br/>';
+ 		}
+ 		$htmlStr .= 'Recordings count = ' . count($recordingsjson) . '<br/><br/>';
+ 		foreach (array_values($recordingsjson) as $i => $recording) {
+ 			$htmlStr .= 'recording(' . $i . ')<br/>' . formatDiagBlock($recording) . '<br/>';
+ 		}
 		return $htmlStr;
+  }
+
+  // One field per line, indented under the entry header
+  function formatDiagBlock($entry) {
+  	if (!is_array($entry)) {
+  		return '&nbsp;&nbsp;&nbsp;&nbsp;' . htmlspecialchars((string)$entry) . '<br/>';
+  	}
+  	$htmlStr = '';
+  	foreach ($entry as $key => $val) {
+  		$htmlStr .= '&nbsp;&nbsp;&nbsp;&nbsp;' . htmlspecialchars($key . ' = ' . formatDiagValue($val)) . '<br/>';
+  	}
+  	return $htmlStr;
   }
 

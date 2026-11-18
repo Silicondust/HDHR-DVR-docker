@@ -55,6 +55,7 @@ validate_config_file()
 		# config file is missing
 		echo ${DVR_PFX} "Config is missing - creating initial version"
 		create_initial_config
+		.  ${DVRData}/${DVRConf}
 	fi
 }
 
@@ -101,7 +102,7 @@ update_engine()
 		gotStableDVR=true
 	fi
 
-	if [ "$BetaEngine" -eq "1" ]; then
+	if [ "$BetaEngine" = "1" ]; then
 		echo ${DVR_PFX} "Downloading latest Beta release"
 		wget -qO ${DVRData}/${DVRBin}_beta ${BetaURL}
 		if [ $# -ne 0 ] ; then

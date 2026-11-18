@@ -12,7 +12,10 @@ NGINX_SRV_CONF=${CONF_DIR_NGINX}/nginx-dvrui.conf
 PHP_WWW_CONF=${CONF_DIR_PHP}/www.conf
 DVR_USR=dvr
 DVR_GRP=dvr
-PHP_ETC=/etc/php7
+PHP_ETC=/etc/php85
+PHP_INI=${CONF_DIR_PHP}/php.ini
+DVRUI_VARS=/var/www/html/dvrui/vars.php
+DVRUI_TZ_DEFAULT=UTC
 NGINX_ETC=/etc/nginx
 
 ################
@@ -116,6 +119,11 @@ validate_php() {
     if [ ! -f "${CONF_DIR_PHP}/php.ini" ] ; then
         echo "INFO: PHP ini file is missing, pulling from defaults..."
         cp ${DEFAULTS_DIR}/php.ini-rel ${CONF_DIR_PHP}/php.ini
+    fi
+    # Migrate a php-fpm.conf persisted from an older (PHP7) image
+    if grep -q "php7" ${CONF_DIR_PHP}/php-fpm.conf ; then
+        echo "INFO: Migrating PHP FPM config from PHP7 paths..."
+        ${CMD_SED} -i -e "s|/etc/php7/|${PHP_ETC}/|g" -e "s|php7-fpm.pid|php-fpm85.pid|g" ${CONF_DIR_PHP}/php-fpm.conf
     fi
     ${CMD_LN} -fs ${CONF_DIR_PHP}/php-fpm.conf ${PHP_ETC}/php-fpm.conf
     ${CMD_LN} -fs ${CONF_DIR_PHP}/www.conf ${PHP_ETC}/php-fpm.d/www.conf
@@ -232,6 +240,23 @@ update_nginx_port() {
 
 }
 
+# Check the UI Timezone env setting
+# If set - update DVRUI_TZ in the UI vars.php and date.timezone in php.ini
+update_php_tz() {
+    if [ -z "${DVRUI_TZ}" ] ; then
+        echo "INFO: DVRUI_TZ not set - PHP Timezone for the UI will default to ${DVRUI_TZ_DEFAULT}"
+        DVRUI_TZ=${DVRUI_TZ_DEFAULT}
+    fi
+    # Only allow valid timezone identifier characters - value is written into PHP source
+    if ! echo "${DVRUI_TZ}" | grep -Eq '^[A-Za-z0-9_+/-]+$' ; then
+        echo "ERROR: DVRUI_TZ [${DVRUI_TZ}] is not a valid timezone identifier - using ${DVRUI_TZ_DEFAULT}"
+        DVRUI_TZ=${DVRUI_TZ_DEFAULT}
+    fi
+    echo "INFO: Updating the PHP Timezone for UI to ${DVRUI_TZ}"
+    ${CMD_SED} -i -E "s|(const DVRUI_TZ[[:space:]]*=[[:space:]]*)['\"][^'\"]*['\"]|\1'${DVRUI_TZ}'|" ${DVRUI_VARS}
+    ${CMD_SED} -i -E "s|^;?[[:space:]]*date\.timezone[[:space:]]*=.*$|date.timezone = ${DVRUI_TZ}|" ${PHP_INI}
+}
+
 # start the supervisord
 start_supervisord() {
     /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf
@@ -252,5 +277,6 @@ echo ""
 validate_config
 update_user
 update_nginx_port
+update_php_tz
 start_supervisord
 

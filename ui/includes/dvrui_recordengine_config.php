@@ -6,7 +6,7 @@ class DVRUI_Engine_Config {
 	
 	private $configFileName = NULL;
 	private $configFileExists = False;
-	private $configArray = NULL;
+	private $configArray = array();
 	
 	// Default Constructor - nothing provided - do nothing yet...
 	public function __construct() {

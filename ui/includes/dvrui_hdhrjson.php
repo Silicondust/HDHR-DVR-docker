@@ -1,8 +1,21 @@
 <?php
+	require_once("vars.php");
 	require_once("includes/dvrui_common.php");
-	
+	require_once("includes/dvrui_recordengine_config.php");
+	require_once("includes/dvrui_hdhrdiscover.php");
+
+/*
+ * HDHomeRun device discovery
+ *
+ * Follows the SiliconDust discovery model (https://info.hdhomerun.com/info/discovery_api):
+ *  1. Local UDP broadcast discovery of tuners and record engines (native PHP
+ *     implementation in dvrui_hdhrdiscover.php), then query each device's discover.json
+ *  2. The record engine running in this container is queried directly on localhost
+ *  3. Optional cloud discovery (api.hdhomerun.com) as a fallback to find
+ *     devices that local broadcast did not reach
+ * Results are de-duplicated by DeviceID (tuners) and StorageID (engines).
+ */
 class DVRUI_HDHRjson {
-	private $myhdhrurl = '';
 	private $hdhrkey_devID = 'DeviceID';
 	private $hdhrkey_localIP = 'LocalIP';
 	private $hdhrkey_baseURL = 'BaseURL';
@@ -17,202 +30,281 @@ class DVRUI_HDHRjson {
 	private $hdhrkey_tuners = 'TunerCount';
 	private $hdhrkey_legacy = 'Legacy';
 	private $hdhrkey_freespace = 'FreeSpace';
-
 	private $hdhrkey_storageID = 'StorageID';
 	private $hdhrkey_storageURL = 'StorageURL';
+	private $hdhrkey_source = 'Source';
 	private $hdhrlist_key_channelcount = 'ChannelCount';
+
 	private $hdhrlist = array();
 	private $enginelist = array();
 	private $storageURL = '';
+	private $discoverLog = array();
 
 	public function __construct() {
-		$this->myhdhrurl = DVRUI_Vars::DVRUI_apiurl . 'discover';
-		$storageURL = "??";
-
-		$hdhr_data = getJsonFromUrl($this->myhdhrurl);
-		$hdhr_count = count($hdhr_data);
-		error_log('Processing ' . $hdhr_count . ' discovered devices');
-		
-		for ($i=0;$i<$hdhr_count;$i++) {
-			$hdhr = $hdhr_data[$i];
-			$hdhr_base = $hdhr[$this->hdhrkey_baseURL];
-			$hdhr_ip = $hdhr[$this->hdhrkey_localIP];
-			
-			if (!array_key_exists($this->hdhrkey_discoverURL,$hdhr)) {
-				// Skip this HDHR - it doesn't support the newer HTTP interface
-				// for DVR
-				error_log('Skipping Device - not HTTP capable');
-				continue;
-			}
-
-			error_log('Processing ' . $hdhr[$this->hdhrkey_discoverURL]);
-			$hdhr_info = getJsonFromUrl($hdhr[$this->hdhrkey_discoverURL]);
-
-			if (array_key_exists($this->hdhrkey_storageURL,$hdhr)) {
-				error_log('Record Engine Discovered');
-				// this is a record engine!
-				// Need to confirm it's a valid one - After restart of
-				// engine it updates api.hdhomerun.com but sometimes the
-				// old engine config is left behind.
-				$rEngine = getJsonFromUrl($hdhr[$this->hdhrkey_discoverURL]);
-				if (strcasecmp($rEngine[$this->hdhrkey_storageID],$hdhr[$this->hdhrkey_storageID]) != 0) {
-					//skip, this is not our engine
-					error_log('Engine found - but storageID not matching discover - skipping');
-					continue;
-    		}
-				
-				error_log('Adding engine ' . $hdhr_base); 
-				// freespace is not available if maxstreams = 0
-				$freespace = '0';
-		  	if (array_key_exists($this->hdhrkey_freespace,$hdhr_info)) {
-	  			$freespace = $hdhr_info[$this->hdhrkey_freespace];
-  			}
-
-				// for new Servio and Scribe there are additional params needed to store
-		  	if (array_key_exists($this->hdhrkey_modelNum,$hdhr_info)) {
-	  			$enginemodel = $hdhr_info[$this->hdhrkey_modelNum];
-	  		} else {
-	  			$enginemodel = 'RecordEngine';
-  			}
-		  	if (array_key_exists($this->hdhrkey_devID,$hdhr_info)) {
-	  			$engineID = $hdhr_info[$this->hdhrkey_devID];
-	  		} else {
-	  			$engineID = 'Record Engine';
-  			}
-		  	if (array_key_exists($this->hdhrkey_tuners,$hdhr_info)) {
-	  			$engineTuners = $hdhr_info[$this->hdhrkey_tuners];
-	  		} else {
-	  			$engineTuners = 'IGNORE';
-  			}
-		  	if (array_key_exists($this->hdhrkey_auth,$hdhr_info)) {
-	  			$engineAuth = $hdhr_info[$this->hdhrkey_auth];
-	  		} else {
-	  			$engineAuth = 'IGNORE';
-  			}
-  			
-				$this->enginelist[] = array( $this->hdhrkey_storageID => $hdhr[$this->hdhrkey_storageID],
-					$this->hdhrkey_baseURL => $hdhr_base,
-					$this->hdhrkey_devID => $engineID,
-					$this->hdhrkey_tuners => $engineTuners,
-					$this->hdhrkey_auth => $engineAuth,
-					$this->hdhrkey_modelNum => $enginemodel,
-					$this->hdhrkey_modelName => $hdhr_info[$this->hdhrkey_modelName],
-					$this->hdhrkey_ver => $hdhr_info[$this->hdhrkey_ver],
-					$this->hdhrkey_storageID => $hdhr_info[$this->hdhrkey_storageID],
-					$this->hdhrkey_storageURL => $hdhr_info[$this->hdhrkey_storageURL],
-					$this->hdhrkey_freespace => $freespace);
-				continue;
-			}
-			error_log('must be a tuner');
-			// ELSE we have a tuner
-
-			$tuners='unknown';
-			if (array_key_exists($this->hdhrkey_tuners,$hdhr_info)) {
-				$tuners = $hdhr_info[$this->hdhrkey_tuners];
-			}
-
-			$legacy='No';
-			if (array_key_exists($this->hdhrkey_legacy,$hdhr_info)) {
-				$legacy = $hdhr_info[$this->hdhrkey_legacy];
-			}
-
-			$hdhr_lineup = getJsonFromUrl($hdhr_info[$this->hdhrkey_lineupURL]);	
-
-			$this->hdhrlist[] = array( $this->hdhrkey_devID => $hdhr[$this->hdhrkey_devID],
-										$this->hdhrkey_modelNum => $hdhr_info[$this->hdhrkey_modelNum],
-										$this->hdhrlist_key_channelcount => count($hdhr_lineup),
-										$this->hdhrkey_baseURL => $hdhr_base,
-										$this->hdhrkey_lineupURL => $hdhr_info[$this->hdhrkey_lineupURL],
-										$this->hdhrkey_modelName => $hdhr_info[$this->hdhrkey_modelName],
-										$this->hdhrkey_auth =>$hdhr_info[$this->hdhrkey_auth],
-										$this->hdhrkey_fwVer => $hdhr_info[$this->hdhrkey_fwVer],
-										$this->hdhrkey_tuners => $tuners,
-										$this->hdhrkey_legacy => $legacy,
-										$this->hdhrkey_fwName => $hdhr_info[$this->hdhrkey_fwName]);
-		}		
+		$this->discover_local();
+		$this->discover_local_engine();
+		if (DVRUI_Vars::DVRUI_cloudDiscover) {
+			$this->discover_cloud();
+		}
+		error_log('Discovery complete: ' . count($this->hdhrlist) . ' tuner(s), '
+			. count($this->enginelist) . ' engine(s)');
 	}
-	
+
+	/*
+	 * Local UDP broadcast discovery of tuners and record engines
+	 */
+	private function discover_local() {
+		$discover = new DVRUI_HDHRdiscover();
+		$devices = $discover->discover();
+		foreach ($discover->get_log() as $msg) {
+			$this->log($msg);
+		}
+
+		foreach ($devices as $dev) {
+			$ip = $dev['IP'];
+			$devID = $this->val($dev, $this->hdhrkey_devID, null);
+			$name = ($devID !== null) ? $devID : $this->val($dev, $this->hdhrkey_storageID, 'engine');
+			$this->log('Found ' . $name . ' at ' . $ip . ' types [' . implode(',', $dev['DeviceType']) . ']');
+
+			if (!array_key_exists($this->hdhrkey_baseURL, $dev)) {
+				// Legacy devices have no HTTP interface and can't be used by the DVR
+				$this->log('Skipping ' . $name . ' at ' . $ip . ' - no BaseURL (legacy device)');
+				continue;
+			}
+			$info = getJsonFromUrl(rtrim($dev[$this->hdhrkey_baseURL], '/') . '/discover.json');
+			if (!is_array($info)) {
+				$this->log('Skipping ' . $name . ' at ' . $ip . ' - discover.json not available');
+				continue;
+			}
+			// discover.json wins, the UDP reply fills in anything it is missing
+			unset($dev['IP'], $dev['DeviceType']);
+			$info = array_merge($dev, $info);
+			$info[$this->hdhrkey_localIP] = $ip;
+			$this->add_device($info, 'local', $devID);
+		}
+	}
+
+	/*
+	 * The record engine in this container listens on the Port set in dvr.conf
+	 */
+	private function discover_local_engine() {
+		$conf = new DVRUI_Engine_Config();
+		$port = trim($conf->getServerPort());
+		if (!preg_match('/^[0-9]+$/', $port)) {
+			$port = DVRUI_Vars::DVR_defaultPort;
+		}
+		$info = getJsonFromUrl('http://127.0.0.1:' . $port . '/discover.json');
+		if (!is_array($info)) {
+			$this->log('Local record engine not responding on port ' . $port);
+			return;
+		}
+		$this->add_device($info, 'local', null);
+	}
+
+	/*
+	 * Cloud discovery - lists devices that share this network's public IP
+	 */
+	private function discover_cloud() {
+		$hdhr_data = getJsonFromUrl(DVRUI_Vars::DVRUI_apiurl . 'discover');
+		if (!is_array($hdhr_data)) {
+			$this->log('Cloud discovery returned no data');
+			return;
+		}
+		foreach ($hdhr_data as $hdhr) {
+			if (!is_array($hdhr) || !array_key_exists($this->hdhrkey_discoverURL, $hdhr)) {
+				// Not HTTP capable - can't be used by the DVR
+				continue;
+			}
+			$devID = $this->val($hdhr, $this->hdhrkey_devID, null);
+			$storageID = $this->val($hdhr, $this->hdhrkey_storageID, null);
+			if (($devID !== null && $this->find_tuner($devID) >= 0 && $storageID === null)
+					|| ($storageID !== null && $this->find_engine($storageID) >= 0)) {
+				continue; // already found locally
+			}
+			$info = getJsonFromUrl($hdhr[$this->hdhrkey_discoverURL]);
+			if (!is_array($info)) {
+				continue;
+			}
+			// After an engine restart the cloud can still list the old engine,
+			// so make sure the StorageID still matches what the engine reports
+			if ($storageID !== null
+					&& strcasecmp($this->val($info, $this->hdhrkey_storageID, ''), $storageID) != 0) {
+				$this->log('Skipping stale cloud engine entry ' . $storageID);
+				continue;
+			}
+			if (!array_key_exists($this->hdhrkey_localIP, $info)) {
+				$info[$this->hdhrkey_localIP] = $this->val($hdhr, $this->hdhrkey_localIP, '');
+			}
+			$this->add_device($info, 'cloud', $devID);
+		}
+	}
+
+	/*
+	 * Devices with a hard drive (e.g. SCRIBE/SERVIO) report as both a tuner and storage
+	 */
+	private function add_device($info, $source, $devID) {
+		if ($devID === null) {
+			$devID = $this->val($info, $this->hdhrkey_devID, null);
+		}
+
+		if (array_key_exists($this->hdhrkey_storageURL, $info)) {
+			$this->add_engine($info, $source);
+		}
+
+		if ($devID !== null && array_key_exists($this->hdhrkey_lineupURL, $info)) {
+			$this->add_tuner($info, $source, strtoupper($devID));
+		}
+	}
+
+	private function add_tuner($info, $source, $devID) {
+		if ($this->find_tuner($devID) >= 0) {
+			return;
+		}
+		$lineup = getJsonFromUrl($info[$this->hdhrkey_lineupURL]);
+		$this->log('Adding tuner ' . $devID . ' (' . $source . ')');
+		$this->hdhrlist[] = array(
+			$this->hdhrkey_devID => $devID,
+			$this->hdhrkey_modelNum => $this->val($info, $this->hdhrkey_modelNum, 'unknown'),
+			$this->hdhrlist_key_channelcount => is_array($lineup) ? count($lineup) : 0,
+			$this->hdhrkey_baseURL => $this->val($info, $this->hdhrkey_baseURL, ''),
+			$this->hdhrkey_lineupURL => $info[$this->hdhrkey_lineupURL],
+			$this->hdhrkey_modelName => $this->val($info, $this->hdhrkey_modelName, 'HDHomeRun'),
+			$this->hdhrkey_auth => $this->val($info, $this->hdhrkey_auth, '??'),
+			$this->hdhrkey_fwVer => $this->val($info, $this->hdhrkey_fwVer, ''),
+			$this->hdhrkey_tuners => $this->val($info, $this->hdhrkey_tuners, 'unknown'),
+			$this->hdhrkey_legacy => $this->val($info, $this->hdhrkey_legacy, 'No'),
+			$this->hdhrkey_fwName => $this->val($info, $this->hdhrkey_fwName, ''),
+			$this->hdhrkey_localIP => $this->val($info, $this->hdhrkey_localIP, ''),
+			$this->hdhrkey_source => $source);
+	}
+
+	private function add_engine($info, $source) {
+		$storageID = $this->val($info, $this->hdhrkey_storageID, '');
+		$key = ($storageID != '') ? $storageID : $this->val($info, $this->hdhrkey_baseURL, '');
+		if ($this->find_engine($key) >= 0) {
+			return;
+		}
+		$this->log('Adding engine ' . $key . ' (' . $source . ')');
+		$this->enginelist[] = array(
+			$this->hdhrkey_storageID => $key,
+			$this->hdhrkey_baseURL => $this->val($info, $this->hdhrkey_baseURL, ''),
+			$this->hdhrkey_devID => $this->val($info, $this->hdhrkey_devID, 'Record Engine'),
+			$this->hdhrkey_tuners => $this->val($info, $this->hdhrkey_tuners, 'IGNORE'),
+			$this->hdhrkey_auth => $this->val($info, $this->hdhrkey_auth, 'IGNORE'),
+			$this->hdhrkey_modelNum => $this->val($info, $this->hdhrkey_modelNum, 'RecordEngine'),
+			$this->hdhrkey_modelName => $this->val($info, $this->hdhrkey_modelName, 'HDHomeRun DVR'),
+			$this->hdhrkey_ver => $this->val($info, $this->hdhrkey_ver,
+				$this->val($info, $this->hdhrkey_fwVer, '')),
+			$this->hdhrkey_storageURL => $info[$this->hdhrkey_storageURL],
+			// freespace is not available if maxstreams = 0
+			$this->hdhrkey_freespace => $this->val($info, $this->hdhrkey_freespace, '0'),
+			$this->hdhrkey_localIP => $this->val($info, $this->hdhrkey_localIP, ''),
+			$this->hdhrkey_source => $source);
+	}
+
+	private function find_tuner($devID) {
+		for ($i = 0; $i < count($this->hdhrlist); $i++) {
+			if (strcasecmp($this->hdhrlist[$i][$this->hdhrkey_devID], $devID) == 0) {
+				return $i;
+			}
+		}
+		return -1;
+	}
+
+	private function find_engine($storageID) {
+		for ($i = 0; $i < count($this->enginelist); $i++) {
+			if (strcasecmp($this->enginelist[$i][$this->hdhrkey_storageID], $storageID) == 0) {
+				return $i;
+			}
+		}
+		return -1;
+	}
+
+	private function val($arr, $key, $default) {
+		return array_key_exists($key, $arr) ? $arr[$key] : $default;
+	}
+
+	private function log($msg) {
+		$this->discoverLog[] = $msg;
+		error_log($msg);
+	}
+
+	public function get_discover_log() {
+		return $this->discoverLog;
+	}
+
 	public function device_count() {
 		return count($this->hdhrlist);
 	}
 
 	public function get_device_info($pos) {
 		$device = $this->hdhrlist[$pos];
-		return ' DeviceID: ' . $device[$this->hdhrkey_devID] 
-		          . ' Model Number: ' . $device[$this->hdhrkey_modelNum] 
+		return ' DeviceID: ' . $device[$this->hdhrkey_devID]
+		          . ' Model Number: ' . $device[$this->hdhrkey_modelNum]
 		          . ' Channels: ' . $device[$this->hdhrlist_key_channelcount] . ' ';
 	}
-	
+
 	public function set_my_engine($storageID){
-	  error_log('Setting storageURL to match StorageID: ' . $storageID);
+		error_log('Setting storageURL to match StorageID: ' . $storageID);
 		$this->storageURL = '';
-	  for ($i=0;$i<count($this->enginelist);$i++) {
-	    error_log('Checking: ' . $this->enginelist[$i][$this->hdhrkey_storageID]);
-	    if (strcasecmp($storageID,$this->enginelist[$i][$this->hdhrkey_storageID])== 0) {
-	      error_log('Setting StorageURL to ' . $this->enginelist[$i][$this->hdhrkey_storageURL]);
-	      $this->storageURL = $this->enginelist[$i][$this->hdhrkey_storageURL];
-	    }
-	  }
+		$pos = $this->find_engine($storageID);
+		if ($pos >= 0) {
+			$this->storageURL = $this->enginelist[$pos][$this->hdhrkey_storageURL];
+			error_log('Setting StorageURL to ' . $this->storageURL);
+		}
 		return $this->storageURL;
 	}
 
 	public function get_storage_url(){
 		return $this->storageURL;
-	}	
-	
+	}
+
 	public function get_device_id($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrkey_devID];
+		return $this->hdhrlist[$pos][$this->hdhrkey_devID];
 	}
 
 	public function get_device_model($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrkey_modelNum];
+		return $this->hdhrlist[$pos][$this->hdhrkey_modelNum];
 	}
 
 	public function get_device_modelname($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrkey_modelName];
+		return $this->hdhrlist[$pos][$this->hdhrkey_modelName];
 	}
 
 	public function get_device_channels($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrlist_key_channelcount];
+		return $this->hdhrlist[$pos][$this->hdhrlist_key_channelcount];
 	}
 
 	public function get_device_lineup($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrkey_lineupURL];
+		return $this->hdhrlist[$pos][$this->hdhrkey_lineupURL];
 	}
 
 	public function get_device_baseurl($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrkey_baseURL];
+		return $this->hdhrlist[$pos][$this->hdhrkey_baseURL];
 	}
 
 	public function get_device_firmware($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrkey_fwVer];
+		return $this->hdhrlist[$pos][$this->hdhrkey_fwVer];
 	}
 
 	public function get_device_fwname($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrkey_fwName];
+		return $this->hdhrlist[$pos][$this->hdhrkey_fwName];
 	}
 
 	public function get_device_tuners($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $device[$this->hdhrkey_tuners];
+		return $this->hdhrlist[$pos][$this->hdhrkey_tuners];
 	}
 
+	public function get_device_localip($pos) {
+		return $this->hdhrlist[$pos][$this->hdhrkey_localIP];
+	}
+
+	public function get_device_source($pos) {
+		return $this->hdhrlist[$pos][$this->hdhrkey_source];
+	}
 
 	public function get_device_auth($pos) {
-		$device = $this->hdhrlist[$pos];
-		if (array_key_exists($this->hdhrkey_auth,$device)) {
-			return $device[$this->hdhrkey_auth];
-		} else {
-			return '??';
-		}
+		return $this->hdhrlist[$pos][$this->hdhrkey_auth];
 	}
 
 	public function engine_count() {
@@ -220,48 +312,47 @@ class DVRUI_HDHRjson {
 	}
 
 	public function get_engine_baseurl($pos) {
-		$device = $this->enginelist[$pos];
-		return $device[$this->hdhrkey_baseURL];
+		return $this->enginelist[$pos][$this->hdhrkey_baseURL];
 	}
 
 	public function get_engine_id($pos) {
-		$device = $this->enginelist[$pos];
-		return $device[$this->hdhrkey_devID];
+		return $this->enginelist[$pos][$this->hdhrkey_devID];
 	}
 
 	public function get_engine_modelname($pos) {
-		$device = $this->enginelist[$pos];
-		return $device[$this->hdhrkey_modelName];
+		return $this->enginelist[$pos][$this->hdhrkey_modelName];
 	}
-	
+
 	public function get_engine_firmware($pos) {
-		$device = $this->enginelist[$pos];
-		return $device[$this->hdhrkey_ver];
+		return $this->enginelist[$pos][$this->hdhrkey_ver];
 	}
 
 	public function get_engine_freespace($pos) {
-		$device = $this->enginelist[$pos];
-		return $this->convert_size($device[$this->hdhrkey_freespace]);
+		return $this->convert_size($this->enginelist[$pos][$this->hdhrkey_freespace]);
 	}
 
 	public function get_engine_storageId($pos) {
-		$device = $this->enginelist[$pos];
-		return $device[$this->hdhrkey_storageID];
+		return $this->enginelist[$pos][$this->hdhrkey_storageID];
 	}
 
 	public function get_engine_storageUrl($pos) {
-		$device = $this->enginelist[$pos];
-		return $device[$this->hdhrkey_storageURL];
+		return $this->enginelist[$pos][$this->hdhrkey_storageURL];
+	}
+
+	public function get_engine_localip($pos) {
+		return $this->enginelist[$pos][$this->hdhrkey_localIP];
+	}
+
+	public function get_engine_source($pos) {
+		return $this->enginelist[$pos][$this->hdhrkey_source];
 	}
 
 	public function get_device_image($pos) {
-		$device = $this->hdhrlist[$pos];
-		return $this->get_image_url($device[$this->hdhrkey_modelNum]);
+		return $this->get_image_url($this->hdhrlist[$pos][$this->hdhrkey_modelNum]);
 	}
 
 	public function get_engine_image($pos) {
-		$device = $this->enginelist[$pos];
-		return $this->get_image_url($device[$this->hdhrkey_modelNum]);
+		return $this->get_image_url($this->enginelist[$pos][$this->hdhrkey_modelNum]);
 	}
 
 	private function get_image_url($model) {
@@ -308,46 +399,19 @@ class DVRUI_HDHRjson {
 		}
 	}
 
-  private function convert_size($bytes)
-  {
-  	$bytes = floatval($bytes);
-  	$arBytes = array(
-  		0 => array(
-  			"UNIT" => "TB",
-  			"VALUE" => pow(1024, 4)
-  		),
-  		1 => array(
-  			"UNIT" => "GB",
-  			"VALUE" => pow(1024, 3)
-  		),
-  		2 => array(
-  			"UNIT" => "MB",
-  			"VALUE" => pow(1024, 2)
-  			),
-  		3 => array(
-  			"UNIT" => "KB",
-  			"VALUE" => 1024
-  		),
-  		4 => array(
-  			"UNIT" => "B",
-  			"VALUE" => 1
-  		),
-  	);
-  	
-  	if ($bytes == 0) {
-  	  return 'FULL';
-  	}
-  	
-  	foreach($arBytes as $arItem)
-  	{
-  		if($bytes >= $arItem["VALUE"])
-  		{
-  			$result = $bytes / $arItem["VALUE"];
-  			$result = strval(round($result, 2))." ".$arItem["UNIT"];
-  			break;
-  		}
-  	}
-  	return $result;
-  }
+	private function convert_size($bytes)
+	{
+		$bytes = floatval($bytes);
+		if ($bytes == 0) {
+			return 'FULL';
+		}
+		$units = array('TB' => pow(1024, 4), 'GB' => pow(1024, 3), 'MB' => pow(1024, 2), 'KB' => 1024, 'B' => 1);
+		foreach ($units as $unit => $value) {
+			if ($bytes >= $value) {
+				return strval(round($bytes / $value, 2)) . ' ' . $unit;
+			}
+		}
+		return strval($bytes) . ' B';
+	}
 }
 ?>

@@ -11,6 +11,7 @@
 	require_once("statusmessage.php");
 	require_once("dashboard.php");
 	require_once("diagnostics.php");
+	require_once("recorded.php");
 
 	/* Prepare Ajax */
 	error_log( "Setting up Ajax" );
@@ -24,6 +25,7 @@
 	$ajax->exportFunction("updateServerConfig","port, path");
 	$ajax->exportFunction("openDashboard","");
 	$ajax->exportFunction("openDiagnosticsPage","");
+	$ajax->exportFunction("openRecordedPage","");
 	
 	/* GO */
 	error_log( "Enable Ajax" );
@@ -40,8 +42,8 @@
 	
 	//Build navigation menu for pages
 	error_log( "Build Navigation Pages" );
-	$pageTitles = array('Dashboard', '.');
-	$pageNames = array('dashboard_page', 'diagnostics_page');
+	$pageTitles = array('Dashboard', 'Recordings', '.');
+	$pageNames = array('dashboard_page', 'recorded_page', 'diagnostics_page');
 	$menu_data = file_get_contents('style/pagemenu.html');
 	$menuEntries = '';
 	$firstPage = true;
@@ -49,11 +51,20 @@
 		$menuEntry = str_replace('<!-- dvrui_menu_pagename-->',$pageNames[$i],file_get_contents('style/pagemenu_entry.html'));
 		$menuEntry = str_replace('<!-- dvrui_menu_pagetitle-->',$pageTitles[$i],$menuEntry);
 		if ($firstPage) {
-			$menuEntry = str_replace('<!--dvrui_default_page_option-->','id="defaultPage"',$menuEntry);
+			$menuEntry = str_replace('<!--dvrui_default_page_option-->',' id="defaultPage"',$menuEntry);
 			$firstPage = false;
+		} else {
+			$menuEntry = str_replace('<!--dvrui_default_page_option-->','',$menuEntry);
 		}
 		$menuEntries .= $menuEntry;
 	}
+	// Reload action (sits next to diagnostics) - refreshes the active page, doesn't change tabs
+	$menuAction = file_get_contents('style/pagemenu_action.html');
+	$menuAction = str_replace('<!-- dvrui_menu_actionname-->', 'reload_page', $menuAction);
+	$menuAction = str_replace('<!-- dvrui_menu_actiontip-->', 'Reload', $menuAction);
+	$menuAction = str_replace('<!-- dvrui_menu_actionfunc-->', 'reloadPage', $menuAction);
+	$menuAction = str_replace('<!-- dvrui_menu_actiontitle-->', '&#x21bb;', $menuAction);
+	$menuEntries .= $menuAction;
 	$menu_data = str_replace('<!-- dvrui_pagemenu_entries-->',$menuEntries,$menu_data);
 	
 	// --- Build Page Here ---
@@ -75,6 +86,7 @@
 	$topmenu = file_get_contents('style/topmenu.html');
 	$dashboarddata = file_get_contents('style/dashboard.html');
 	$diagnosticsdata = file_get_contents('style/diagnostics.html');
+	$recordeddata = file_get_contents('style/recorded.html');
 
 	$topmenu = str_replace('[[pagetitle]]',$pageName,$topmenu);
 	$topmenu = str_replace('[[UI-Version]]',$UIVersion,$topmenu);
@@ -84,6 +96,7 @@
 	$indexPage = str_replace('<!-- dvrui_pagemenu -->',$menu_data,$indexPage);
 	$indexPage = str_replace('<!-- dvrui_dashboard -->',$dashboarddata,$indexPage);
 	$indexPage = str_replace('<!-- dvrui_diagnostics -->',$diagnosticsdata,$indexPage);
+	$indexPage = str_replace('<!-- dvrui_recorded -->',$recordeddata,$indexPage);
 
 	// -- Attach the Index to the Page
 	error_log( "Build Index Page - attach to page" );

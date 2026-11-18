@@ -663,10 +663,10 @@ class TinyAjax
 	 * @return array key->val array containing all form data
 	 */
 	public static function getPostData($data) {
-		$row = split("!ROW!", $data);
-		$arr = "";
+		$row = explode("!ROW!", $data);
+		$arr = array();
 		foreach($row as $val) {
-			$tmp = split("!COL!", $val);
+			$tmp = explode("!COL!", $val);
 			if(sizeof($tmp) > 1)
 				$arr[$tmp[0]] = $tmp[1];
 			else
@@ -699,7 +699,7 @@ class TinyAjax
 			return $data;
 		} else {
 			//MK - Don't want data in utf8, decode it
-		return utf8_decode($data);
+		return mb_convert_encoding($data, 'ISO-8859-1', 'UTF-8');
 		}
 	}
 	

@@ -1,0 +1,27 @@
+# Local test deployment - builds the image from this repo
+#   docker compose -f deploy/docker-compose.yml up -d --build
+# UI:     http://localhost:18080
+#         (avoid 10080 - Chromium browsers block it with ERR_UNSAFE_PORT)
+# Engine: http://localhost:59090
+#
+# Note: on Docker Desktop (Windows/macOS) the container is behind NAT, so UDP broadcast
+# discovery cannot reach the LAN - tuners are found via the cloud fallback instead.
+# On a Linux host use "network_mode: host" (and drop "ports") for full local discovery.
+name: hdhrdvr
+
+services:
+  dvr:
+    build:
+      context: ..
+    image: hdhrdvr-docker:local
+    container_name: hdhrdvr
+    restart: unless-stopped
+    # Host networking - needed for UDP broadcast discovery of tuners
+    # (Docker Desktop: Settings > Resources > Network > Enable host networking)
+    network_mode: host
+    environment:
+      - DVRUI_TZ=Europe/Lisbon
+      - DVRUI_PORT=18080    # Management UI (nginx listens directly on the host)
+    volumes:
+      - ./data:/dvrdata
+      - ./rec:/dvrrec
