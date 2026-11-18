@@ -29,6 +29,14 @@ By default the Web server will run on Port 80. Use the DVRUI_PORT environment va
 to a free port in the case where there is a conflict with another container, or the host.
 Avoid ports that browsers block as unsafe (e.g. 10080 gives ERR_UNSAFE_PORT in Chrome, Edge, Vivaldi and Firefox).
 
+Use the DVRUI_ENABLE environment variable to choose how much of the UI runs:
+
+| DVRUI_ENABLE | UI |
+| --------| ------- |
+| full (default) | The whole UI - Dashboard, Recordings (with the series pages and their actions) and Diagnostics |
+| minimal | The Dashboard and Diagnostics only |
+| none | No UI at all - NGINX and PHP FPM are not started, the container just runs the record engine |
+
 You can override the user ID and group ID used by the container processes by setting the PUID/PGID to match a user on your system.
 By default NGINX will run as a user 'nginx'' and PHP as 'nobody' while the DVR will run simply as root or mapped if you use the --user settings of docket.
 If specified - then everything in /dvrdata and /dvrrec will be changed to the new user IDs.
@@ -50,6 +58,7 @@ Yes it would be useful to maintain the Storage UUID in the dvr.conf, but is safe
 | PUID | Override the default user ID for the DVR |
 | PGID | Override the default group ID for the DVR |
 | DVRUI_TZ | Set the PHP timezone for the UI, e.g. Europe/Lisbon (defaults to UTC) |
+| DVRUI_ENABLE | How much of the UI to run: none, minimal (Dashboard and Diagnostics) or full (defaults to full) |
 
 ## Docker Run Example
 ```
@@ -60,6 +69,7 @@ docker run -d --name dvr \
   -e PUID=1000 \
   -e PGID=1000 \
   -e DVRUI_TZ=Europe/Lisbon \
+  -e DVRUI_ENABLE=full \
   -v /path/to/hdhomerun/tempdata:/dvrdata \
   -v /path/to/hdhomerun/recordings:/dvrrec \
   demonrik/hdhrdvr-docker

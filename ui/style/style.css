@@ -200,7 +200,7 @@ a.reload_page {
   right: 0;
   width: 52px;
   height: 52px;
-  background: #5577a0;
+  background: rgba(85, 119, 160, 0.5);   /* #5577a0 at 50% - image shows through */
   clip-path: polygon(0 0, 100% 0, 100% 100%);
   box-shadow: none;
 }
@@ -253,6 +253,402 @@ a.reload_page {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Series page - opened from a Recordings card image; its menu tab is hidden until then */
+ul.tabmenu li.series_page {
+  display: none;
+}
+ul.tabmenu li a.series_page {
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+#series_page {
+  position: relative;
+  padding: 0;
+  width: 100%;
+}
+#series_header {
+  color: white;
+  background: #1e2a3c;
+  margin: 10px 5px 5px 5px;
+  padding: 8px 15px;
+  border: solid 1px #111;
+  box-shadow: 2px 2px 2px #000;
+}
+/* sized to fill the space above the seasons (half the image height) */
+#series_title {
+  color: white;
+  text-shadow: none;
+  font-size: 2em;
+  line-height: 38px;
+  margin-bottom: 2px;
+}
+#series_count {
+  font-style: italic;
+  font-size: 1.2em;
+  line-height: 26px;
+  margin-bottom: 4px;
+}
+.series_hdr_line {
+  color: #DDD;
+  font-size: 1.1em;
+  line-height: 23px;
+}
+.series_hdr_line.series_hdr_dates {
+  padding-left: 1.5em;
+  font-size: 0.95em;
+  line-height: 20px;
+  margin-bottom: 3px;
+}
+/* clears the header spacer, so it sits at the bottom of the header - just above the
+ * seasons - however few lines the header has; fixed height so the spacer can allow for it */
+#series_filter {
+  clear: right;
+  margin-top: 8px;
+  height: 30px;
+  line-height: 30px;
+  font-size: 1.05em;
+  color: white;
+}
+#series_filter select {
+  background: #dbe4ef;
+  color: black;
+  padding: 3px 5px;
+  min-width: 300px;
+  text-shadow: none;
+}
+.series_hdr_label {
+  color: #9fb6d3;
+  font-weight: bold;
+}
+.series_hdr_name {
+  color: white;
+}
+#series_body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 5px;
+}
+/* only as wide as "Season 999" needs (set by the hidden sizer item) */
+#series_seasons {
+  flex: none;
+  width: max-content;
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  background: #1e2a3c;   /* same as the episode cards */
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: 2px 2px 2px #000;
+}
+#series_seasons .series_season {
+  display: block;
+  color: white;
+  padding: 8px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: 0.1s;
+}
+#series_seasons a.series_season:hover,
+#series_seasons a.series_season.active {
+  background-color: #5577a0;
+}
+#series_seasons li.series_season_sizer {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+}
+#series_episode_list {
+  flex: 1;
+  min-width: 0;
+}
+/* command bar above the episodes: select all, the selected count, then the actions */
+#series_cmdbar {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-height: 34px;
+  margin-bottom: 6px;
+  padding: 4px 10px 4px 8px;
+  color: white;
+  background: rgba(23, 33, 49, 0.9);
+  border-radius: 5px;
+  box-shadow: 2px 2px 2px #000;
+  box-sizing: border-box;
+}
+#series_cmdbar label.series_select_all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+#series_selected_count {
+  color: #BBB;
+  font-size: 0.85em;
+  font-style: italic;
+}
+/* actions sit on the right of the bar */
+#series_actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+#series_actions .series_action {
+  font: inherit;
+  font-size: 0.85em;
+  color: white;
+  background: #3a4f6e;
+  border: solid 1px #5577a0;
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+#series_actions .series_action:hover:not(:disabled) {
+  background: #5577a0;
+}
+#series_actions .series_action.series_action_danger {
+  background: #6e2a2e;
+  border-color: #b03a40;
+}
+#series_actions .series_action.series_action_danger:hover:not(:disabled) {
+  background: #b03a40;
+}
+#series_actions .series_action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+#series_cmdbar input[type=checkbox],
+.series_ep_check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #5577a0;
+  cursor: pointer;
+}
+.series_ep_check {
+  flex: none;
+  margin-top: 2px;
+}
+/* a selected episode gets an accent outline */
+.series_episode.selected {
+  box-shadow: inset 0 0 0 2px #5577a0, 2px 2px 2px #000;
+}
+.series_episode {
+  position: relative;   /* for the rating and watched bar */
+  overflow: hidden;    /* clips the watched bar to the rounded corners */
+  display: flex;
+  gap: 10px;
+  background: #1e2a3c;
+  margin-bottom: 6px;
+  padding: 8px 8px 10px 8px;
+  border-radius: 5px;
+  box-shadow: 2px 2px 2px #000;
+}
+/* Series image backdrop (ambient). SiliconDust artwork is only 480x270, so the
+ * sharp image is kept to 720px (1.5x) on the right, fading out to the left and
+ * towards the bottom into a heavily blurred copy that fills the full width (low
+ * resolution doesn't show in the blur). The seasons and episodes start about 50%
+ * of the way down the image; the whole backdrop fades into the page below that.
+ * The backdrop and the content share one grid cell, so the page is as tall as
+ * whichever is taller. */
+.series_view {
+  position: relative;
+}
+.series_view.has_backdrop {
+  display: grid;
+}
+.series_view.has_backdrop > .series_backdrop,
+.series_view.has_backdrop > .series_fg {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.series_backdrop {
+  position: relative;
+  align-self: start;
+  overflow: hidden;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+}
+.series_backdrop img.series_bd_blur {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(32px) saturate(1.2) brightness(0.8);
+  transform: scale(1.25);   /* keeps the blurred edges inside the frame */
+  z-index: 0;
+}
+/* sets the backdrop's height: 720px wide at most, so at most 405px tall */
+.series_backdrop img.series_bd_sharp {
+  position: relative;
+  z-index: 1;   /* above the blurred copy */
+  display: block;
+  width: min(720px, 100%);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  margin-left: auto;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 30%),
+    linear-gradient(to bottom, #000 40%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0%, #000 30%),
+    linear-gradient(to bottom, #000 40%, transparent 100%);
+  mask-composite: intersect;
+}
+.series_fg {
+  position: relative;
+  z-index: 1;
+  padding-bottom: 5px;
+}
+/* over the image the header has no box at all - just text, shadowed to stay readable */
+.series_view.has_backdrop #series_header {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  display: flow-root;
+}
+.series_view.has_backdrop #series_header * {
+  text-shadow: 1px 1px 3px #000, 0 0 6px #000;
+}
+.series_view.has_backdrop #series_header #series_filter select,
+.series_view.has_backdrop #series_header #series_filter option {
+  text-shadow: none;
+}
+/* the seasons and episodes start 50% of the way down the image (min(720px, width)
+ * x 9/16 x 0.5 = 28.125%): this zero-width spacer makes the header at least that tall,
+ * less the header's margins and padding and the body's top margin (41px) and the engine
+ * filter below it (38px) - a longer header just pushes them down */
+.series_view.has_backdrop #series_header::before {
+  content: "";
+  float: right;
+  width: 0;
+  padding-top: calc(min(720px, 100%) * 0.28125 - 79px);
+}
+.series_view.has_backdrop #series_seasons {
+  background: rgba(30, 42, 60, 0.85);   /* same as the episode cards */
+}
+.series_view.has_backdrop .series_episode {
+  background: rgba(30, 42, 60, 0.85);
+}
+.series_ep_info {
+  min-width: 0;
+  color: white;
+}
+.series_ep_info h4.series_ep_title {
+  color: white;
+  text-shadow: none;
+  font-size: 1.05em;
+  line-height: 20px;
+  margin-bottom: 2px;
+}
+.series_ep_number {
+  color: #9fb6d3;
+  margin-right: 4px;
+}
+.series_ep_meta {
+  color: #BBB;
+  font-size: 0.8em;
+  line-height: 16px;
+}
+.series_ep_meta + .series_ep_synopsis {
+  margin-top: 4px;
+}
+.series_ep_synopsis {
+  color: #DDD;
+  font-size: 0.85em;
+  line-height: 17px;
+}
+/* episode markers after the title: gold rosette = new (first airing),
+ * yellow ! = partial recording, red X = recording failed */
+.series_ep_flag {
+  display: inline-block;
+  vertical-align: 1px;
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 18px;
+  text-align: center;
+  cursor: help;
+}
+.series_ep_flag.series_ep_new {
+  vertical-align: -3px;
+  line-height: 0;
+}
+.series_rosette {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+.series_ep_flag.series_ep_partial,
+.series_ep_flag.series_ep_error {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.series_ep_flag.series_ep_partial {
+  background: #f0c419;
+  color: #1e2a3c;
+}
+.series_ep_flag.series_ep_error {
+  background: #e0393e;
+  color: white;
+}
+/* channel logo (SiliconDust's are 4:3 on a transparent background) */
+.series_ep_source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+.series_ep_logo {
+  height: 24px;
+  width: 32px;
+  object-fit: contain;
+}
+/* movie rating - 4 stars in the bottom right, the gold ones clipped to the score */
+.series_episode.has_stars {
+  padding-bottom: 24px;
+}
+.series_ep_stars {
+  position: absolute;
+  right: 10px;
+  bottom: 7px;
+  font-size: 16px;
+  line-height: 16px;
+  letter-spacing: 2px;
+  cursor: help;
+}
+.series_ep_stars_bg {
+  color: #4a5a72;
+}
+.series_ep_stars_fg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: #f0c419;
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* how much has been watched - a thin bar along the bottom of the episode */
+.series_ep_watched {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: help;
+}
+.series_ep_watched > div {
+  height: 100%;
+  background: #6fa8dc;
+}
+.recorded_img {
+  cursor: pointer;
 }
 #start_page {
   position: relative;
@@ -363,9 +759,12 @@ input[type="text"] {
 input[type="text"]:focus {
   outline: none;
 }
+/* status bar stays on top of the page content when it scrolls under it - pages with
+ * layered content (e.g. the series page backdrop) use z-index for their own layers */
 #statusMessage {
   background: #5577a0;
   position: fixed;
+  z-index: 100;
   bottom: 0px;
   width: 100%;
   color: white;
@@ -436,8 +835,9 @@ ul.tabmenu li a:focus,
 a.active {
   background-color: #5577a0;
 }
+/* pages are hidden until chosen from the menu (openTab shows the one picked) */
 .tabcontent {
-  display: hidden;
+  display: none;
 }
 /* content area stays 240x240; the padding (10px top for the image, 10px each side
  * for the text) makes the card taller and wider to fit it */
@@ -463,6 +863,10 @@ a.active {
   display: block;
   margin: 0 auto;
   width: 145px;
+}
+/* engine images open the Recordings page for that engine */
+#hdhr_img.hdhr_img_link {
+  cursor: pointer;
 }
 #hdhr_img_cnt {
   vertical-align: middle;
@@ -758,4 +1162,199 @@ a.active {
   width: 33%;
   background: red;
   broder: 1px solid white;
+}
+
+/* ---------------------------------------------------------------------------
+ * Window-sized layout: the logo bar and menu stay at the top, and only the page
+ * content scrolls - on Recordings just the cards (below the filter bar), on the
+ * series page just the episodes (below the header, seasons and command bar);
+ * Dashboard and Diagnostics scroll within their own area.
+ * --status-h is the height of the status bar fixed to the bottom of the window
+ * (kept up to date by the page script) so nothing ends up hidden behind it.
+ * ------------------------------------------------------------------------- */
+html {
+  overflow-y: hidden;
+}
+#wrapper {
+  height: 100vh;
+  box-sizing: border-box;
+  padding-bottom: var(--status-h, 24px);
+  display: flex;
+  flex-direction: column;
+}
+#wrapper > #header {
+  flex: none;
+}
+#wrapper > #footer {
+  display: none;   /* empty, and would only take space from the content */
+}
+#toppage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#page > ul.tabmenu {
+  flex: none;
+}
+/* each page fills the rest of the window and scrolls on its own */
+#page > .tabcontent {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* Recordings - filter bar and messages stay, the cards scroll */
+#page > #recorded_page {
+  overflow: hidden;
+}
+#recorded_content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+#recorded_box {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#recorded_box > #recorded_filter,
+#recorded_box > #recorded_messages {
+  flex: none;
+}
+#recorded_box > #recorded_list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* Series page - header, seasons and command bar stay, the episodes scroll */
+#page > #series_page {
+  overflow: hidden;
+}
+#series_content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+#series_box {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#series_box > .series_view {
+  flex: 1;
+  min-height: 0;
+}
+.series_view.has_backdrop {
+  aspect-ratio: auto;   /* sized by the window now, not the image */
+  grid-template-rows: minmax(0, 1fr);
+}
+.series_fg {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+.series_fg > #series_header {
+  flex: none;
+}
+.series_fg > #series_body {
+  flex: 1;
+  min-height: 0;
+}
+/* the season list runs the full height of the episode list beside it */
+#series_body > #series_seasons {
+  align-self: stretch;
+  overflow-y: auto;   /* only if there are more seasons than fit */
+}
+#series_body > #series_episode_list {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+#series_episode_list > #series_cmdbar {
+  flex: none;
+}
+#series_episode_list > #series_episode_scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 4px 4px 0;   /* room for the cards' shadows */
+}
+/* scrollbars of the scrolling areas in the dark theme colours */
+#page > .tabcontent,
+#recorded_list,
+#series_seasons,
+#series_episode_scroll {
+  scrollbar-color: #5577a0 #172131;
+}
+/* confirmation dialog (showConfirm) - centred in the window over a dimmed page,
+ * above everything including the status bar */
+.modal_overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 15, 25, 0.65);
+}
+.modal_box {
+  min-width: 360px;
+  max-width: 520px;
+  padding: 20px 24px 18px 24px;
+  color: white;
+  background: #1e2a3c;
+  border: solid 1px #5577a0;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+}
+.modal_box h3.modal_title {
+  color: white;
+  text-shadow: none;
+  font-size: 1.2em;
+  margin-bottom: 10px;
+}
+.modal_message {
+  color: #DDD;
+  line-height: 20px;
+  margin-bottom: 20px;
+}
+.modal_buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal_button {
+  font: inherit;
+  font-size: 0.9em;
+  color: white;
+  background: #3a4f6e;
+  border: solid 1px #5577a0;
+  border-radius: 4px;
+  padding: 5px 14px;
+  cursor: pointer;
+}
+.modal_button:hover,
+.modal_button:focus-visible {
+  background: #5577a0;
+  outline: none;
+}
+.modal_button.modal_danger {
+  background: #6e2a2e;
+  border-color: #b03a40;
+}
+.modal_button.modal_danger:hover,
+.modal_button.modal_danger:focus-visible {
+  background: #b03a40;
 }

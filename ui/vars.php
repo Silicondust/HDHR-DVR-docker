@@ -1,8 +1,8 @@
 <?php
 final class DVRUI_Vars 
 {
-	const DVRUI_version	="3.0.1";
-	const DVRUI_name    ="HDHomeRun DVR Manager";
+	const DVRUI_version	="3.1.0";
+	const DVRUI_name    ="HDHR-DVR Manager";
 	const DVRUI_author	="Rik Dunphy";
 	const DVRUI_email   ="rik.dunphy@gmail.com";
 	const DVRUI_git     ="https://github.com/Silicondust/dvr_install";
@@ -14,6 +14,7 @@ final class DVRUI_Vars
 	const DVRUI_apiurl  ="https://api.hdhomerun.com/";
 	const DVRUI_cloudDiscover = true;
 	const DVRUI_TZ      ='';
+	const DVRUI_ENABLE  ='full';   // full, minimal (Dashboard and Diagnostics) - set from DVRUI_ENABLE at container start
 	const DVRUI_Log     ="/HDHomeRunDVR/data/dvrui.log";
 	const DVRUI_DEBUG   = true;
 }

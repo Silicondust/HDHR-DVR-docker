@@ -22,6 +22,8 @@ services:
     environment:
       - DVRUI_TZ=Europe/Lisbon
       - DVRUI_PORT=18080    # Management UI (nginx listens directly on the host)
+      # none, minimal (Dashboard and Diagnostics) or full - e.g. DVRUI_ENABLE=minimal docker compose ... up -d
+      - DVRUI_ENABLE=${DVRUI_ENABLE:-full}
     volumes:
       - ./data:/dvrdata
       - ./rec:/dvrrec

@@ -1,6 +1,6 @@
-<div class='recorded_entry' data-engines='<!--recorded_engine_keys-->' data-count='<!--recorded_total_count-->' data-latest='<!--recorded_total_latest-->' data-last='<!--recorded_total_last-->'>
+<div class='recorded_entry' data-seriesid='<!--recorded_series_key-->' data-engines='<!--recorded_engine_keys-->' data-count='<!--recorded_total_count-->' data-latest='<!--recorded_total_latest-->' data-last='<!--recorded_total_last-->'>
 	<div class='recorded_img_cnt'>
-		<img src='<!--recorded_image-->' class='recorded_img<!--recorded_img_class-->' loading='lazy' onerror="this.onerror=null;this.className+=' no_preview';this.src='./images/no-preview.png';"/>
+		<img src='<!--recorded_image-->' class='recorded_img<!--recorded_img_class-->' loading='lazy' title='Show the recordings of this series' onclick='openSeries(event, this)' onerror="this.onerror=null;this.className+=' no_preview';this.src='./images/no-preview.png';"/>
 		<div class='recorded_badge'<!--recorded_badge_style-->><span class='recorded_badge_count'><!--recorded_badge_count--></span></div>
 	</div>
 	<div class='recorded_info'>

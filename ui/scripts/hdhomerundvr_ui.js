@@ -25,6 +25,12 @@ function loadTab(tabname, force) {
 			openRecordedPage();
 		}
 	}
+	if (tabname == 'series_page') {
+		// loaded by openSeries - Reload fetches the same series again
+		if (force && currentSeries) {
+			openSeriesPage(currentSeries.key, currentSeries.storageId);
+		}
+	}
 	if (tabname == 'diagnostics_page') {
 		openDiagnosticsPage();
 	}
@@ -147,6 +153,316 @@ function updateRecordedCard(card, engine) {
 		lastLine.style.visibility = (last != '') ? 'visible' : 'hidden';
 		lastLine.getElementsByClassName('recorded_last_date')[0].textContent = last;
 	}
+}
+
+/* Dashboard engine card image - open the Recordings page filtered to that engine.
+ * If the series aren't loaded yet (or a load is in flight) the filter is applied
+ * once the page content arrives. */
+var pendingRecordedEngine = null;
+
+function selectRecordedEngine(storageId) {
+	var sel = document.getElementById('recorded_engine_select');
+	if (!sel) {
+		return false;
+	}
+	for (var i = 0; i < sel.options.length; i++) {
+		var id = sel.options[i].getAttribute('data-storageid');
+		if (id && id.toLowerCase() == storageId.toLowerCase()) {
+			sel.selectedIndex = i;
+			filterRecorded();
+			return true;
+		}
+	}
+	return false;
+}
+
+function openEngineRecordings(evt, storageId) {
+	if (evt) {
+		evt.preventDefault();
+	}
+	var link = document.querySelector('a.tablink.recorded_page');
+	if (!link) {
+		return;
+	}
+	var wasLoaded = recordedLoaded;
+	pendingRecordedEngine = storageId;
+	openTab({currentTarget: link}, 'recorded_page');
+	// already loaded - filter now, otherwise wait for the content (watched below)
+	if (wasLoaded && selectRecordedEngine(storageId)) {
+		pendingRecordedEngine = null;
+	}
+}
+
+/* The page is sized to the window, less the status bar fixed along the bottom -
+ * keep --status-h (see style.css) matched to the bar, which grows with longer messages */
+document.addEventListener('DOMContentLoaded', function() {
+	var bar = document.getElementById('statusMessage');
+	if (!bar) {
+		return;
+	}
+	var update = function() {
+		document.documentElement.style.setProperty('--status-h', (bar.offsetHeight + 4) + 'px');
+	};
+	update();
+	if (window.ResizeObserver) {
+		new ResizeObserver(update).observe(bar);
+	}
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+	var box = document.getElementById('recorded_box');
+	if (box && window.MutationObserver) {
+		new MutationObserver(function() {
+			if (pendingRecordedEngine !== null && document.getElementById('recorded_engine_select')) {
+				var id = pendingRecordedEngine;
+				pendingRecordedEngine = null;
+				selectRecordedEngine(id);
+			}
+		}).observe(box, {childList: true});
+	}
+});
+
+/* Recordings card image - open the series page (menu tab titled with the series).
+ * Limited to the engine the Recordings page is filtered to, if any. */
+var currentSeries = null;
+
+function openSeries(evt, img) {
+	if (evt) {
+		evt.preventDefault();
+	}
+	var card = img.closest('.recorded_entry');
+	var link = document.querySelector('a.tablink.series_page');
+	if (!card || !link) {
+		return;
+	}
+	var storageId = '';
+	var sel = document.getElementById('recorded_engine_select');
+	if (sel && sel.value != 'all') {
+		storageId = sel.options[sel.selectedIndex].getAttribute('data-storageid') || '';
+	}
+	var title = card.getElementsByClassName('recorded_title')[0].textContent;
+	currentSeries = {key: card.getAttribute('data-seriesid'), storageId: storageId};
+
+	link.textContent = title;
+	link.title = title;
+	link.parentNode.style.display = 'block';
+	document.getElementById('series_box').innerHTML = "<p class='recorded_msg'>Loading...</p>";
+	openTab({currentTarget: link}, 'series_page');
+	openSeriesPage(currentSeries.key, currentSeries.storageId);
+}
+
+/* Series page engine filter - fetch the series again for the chosen engine (or All),
+ * so the header figures follow it; Reload keeps the choice */
+function changeSeriesEngine(sel) {
+	if (!currentSeries) {
+		return;
+	}
+	currentSeries.storageId = sel.value;
+	openSeriesPage(currentSeries.key, currentSeries.storageId);
+}
+
+/* Confirmation dialog, centred in the window over a dimmed page (instead of the
+ * browser's confirm box). Cancel has the focus so Enter can't delete by accident;
+ * Esc or a click outside the dialog cancels. onOk runs only if confirmed. */
+function showConfirm(title, message, okLabel, danger, onOk) {
+	var old = document.getElementById('dvrui_modal');
+	if (old) {
+		old.parentNode.removeChild(old);
+	}
+	var overlay = document.createElement('div');
+	overlay.id = 'dvrui_modal';
+	overlay.className = 'modal_overlay';
+	var box = document.createElement('div');
+	box.className = 'modal_box';
+	box.setAttribute('role', 'dialog');
+	box.setAttribute('aria-modal', 'true');
+	var h = document.createElement('h3');
+	h.className = 'modal_title';
+	h.textContent = title;
+	var p = document.createElement('p');
+	p.className = 'modal_message';
+	p.textContent = message;
+	var buttons = document.createElement('div');
+	buttons.className = 'modal_buttons';
+	var cancel = document.createElement('button');
+	cancel.type = 'button';
+	cancel.className = 'modal_button';
+	cancel.textContent = 'Cancel';
+	var ok = document.createElement('button');
+	ok.type = 'button';
+	ok.className = 'modal_button modal_ok' + (danger ? ' modal_danger' : '');
+	ok.textContent = okLabel;
+	buttons.appendChild(cancel);
+	buttons.appendChild(ok);
+	box.appendChild(h);
+	box.appendChild(p);
+	box.appendChild(buttons);
+	overlay.appendChild(box);
+
+	var close = function() {
+		document.removeEventListener('keydown', onKey, true);
+		if (overlay.parentNode) {
+			overlay.parentNode.removeChild(overlay);
+		}
+	};
+	var onKey = function(e) {
+		if (e.key == 'Escape') {
+			e.preventDefault();
+			close();
+		} else if (e.key == 'Tab') {
+			// keep the focus on the two buttons
+			e.preventDefault();
+			(document.activeElement == cancel ? ok : cancel).focus();
+		}
+	};
+	cancel.onclick = close;
+	ok.onclick = function() {
+		close();
+		onOk();
+	};
+	overlay.onclick = function(e) {
+		if (e.target == overlay) {
+			close();
+		}
+	};
+	document.addEventListener('keydown', onKey, true);
+	document.body.appendChild(overlay);
+	cancel.focus();
+}
+
+/* Series page - show the chosen season's (or year's) episodes */
+function selectSeason(evt, link) {
+	if (evt) {
+		evt.preventDefault();
+	}
+	var group = link.getAttribute('data-group');
+	var links = document.querySelectorAll('#series_seasons a.series_season');
+	for (var i = 0; i < links.length; i++) {
+		links[i].classList.toggle('active', links[i] == link);
+	}
+	var lists = document.getElementsByClassName('series_episodes');
+	for (var j = 0; j < lists.length; j++) {
+		lists[j].style.display = (lists[j].getAttribute('data-group') == group) ? 'block' : 'none';
+	}
+	// selection is for the season shown - clear it so hidden episodes aren't acted on
+	var checks = document.querySelectorAll('#series_episode_list .series_ep_check');
+	for (var k = 0; k < checks.length; k++) {
+		checks[k].checked = false;
+	}
+	updateSeriesSelection();
+}
+
+/* Series page command bar - the checkboxes of the episodes in the season shown */
+function visibleSeriesChecks() {
+	var result = [];
+	var lists = document.getElementsByClassName('series_episodes');
+	for (var i = 0; i < lists.length; i++) {
+		if (lists[i].style.display != 'none') {
+			var checks = lists[i].getElementsByClassName('series_ep_check');
+			for (var j = 0; j < checks.length; j++) {
+				result.push(checks[j]);
+			}
+		}
+	}
+	return result;
+}
+
+/* The selected episodes, as [{id, storageId}] - for the command bar actions */
+function selectedSeriesEpisodes() {
+	var result = [];
+	var checks = visibleSeriesChecks();
+	for (var i = 0; i < checks.length; i++) {
+		if (checks[i].checked) {
+			result.push({id: checks[i].getAttribute('data-id'), storageId: checks[i].getAttribute('data-storageid')});
+		}
+	}
+	return result;
+}
+
+function selectAllSeriesEpisodes(box) {
+	var checks = visibleSeriesChecks();
+	for (var i = 0; i < checks.length; i++) {
+		checks[i].checked = box.checked;
+	}
+	updateSeriesSelection();
+}
+
+/* Select all shows ticked / part ticked / clear, plus how many are selected */
+function updateSeriesSelection() {
+	var checks = visibleSeriesChecks();
+	var selected = 0;
+	for (var i = 0; i < checks.length; i++) {
+		if (checks[i].checked) {
+			selected++;
+		}
+		checks[i].closest('.series_episode').classList.toggle('selected', checks[i].checked);
+	}
+	var all = document.getElementById('series_select_all');
+	if (all) {
+		all.checked = (checks.length > 0 && selected == checks.length);
+		all.indeterminate = (selected > 0 && selected < checks.length);
+	}
+	var count = document.getElementById('series_selected_count');
+	if (count) {
+		count.textContent = (selected > 0) ? selected + ' of ' + checks.length + ' selected' : '';
+	}
+
+	// actions need a selection; the watched button sets unwatched when every
+	// selected episode is already watched
+	var buttons = document.querySelectorAll('#series_actions .series_action');
+	for (var b = 0; b < buttons.length; b++) {
+		buttons[b].disabled = (selected == 0);
+	}
+	var watchedBtn = document.getElementById('series_act_watched');
+	if (watchedBtn) {
+		var allWatched = selected > 0;
+		for (var w = 0; w < checks.length; w++) {
+			if (checks[w].checked && checks[w].getAttribute('data-watched') != '1') {
+				allWatched = false;
+			}
+		}
+		watchedBtn.setAttribute('data-action', allWatched ? 'unwatched' : 'watched');
+		watchedBtn.textContent = allWatched ? 'Set unwatched' : 'Set watched';
+	}
+}
+
+/* Command bar action on the selected episodes - the server sends the commands to
+ * each recording's engine and returns the page again (same engine filter and season) */
+function seriesAction(action) {
+	var selected = selectedSeriesEpisodes();
+	if (!currentSeries || selected.length == 0) {
+		return;
+	}
+	var n = selected.length + ' recording' + (selected.length == 1 ? '' : 's');
+	if (action == 'remove') {
+		showConfirm('Remove ' + n + '?',
+			'The file(s) will be deleted, but can be recorded again if they air again.',
+			'Remove', false, function() { runSeriesAction(action, selected); });
+		return;
+	}
+	if (action == 'kill') {
+		showConfirm('Delete ' + n + ' permanently?',
+			'The file(s) will be deleted and will NOT be recorded again.',
+			'Delete permanently', true, function() { runSeriesAction(action, selected); });
+		return;
+	}
+	runSeriesAction(action, selected);
+}
+
+function runSeriesAction(action, selected) {
+	var items = [];
+	for (var i = 0; i < selected.length; i++) {
+		items.push(selected[i].storageId + ':' + selected[i].id);
+	}
+	var active = document.querySelector('#series_seasons a.series_season.active');
+	var group = active ? active.getAttribute('data-group') : '';
+	var buttons = document.querySelectorAll('#series_actions .series_action');
+	for (var b = 0; b < buttons.length; b++) {
+		buttons[b].disabled = true;   // until the page comes back
+	}
+	// the Recordings page counts change too - fetch them again next time it's shown
+	recordedLoaded = false;
+	seriesActionPage(currentSeries.key, currentSeries.storageId, action, items.join(','), group);
 }
 
 /* Reload button - refresh the page being shown without changing tabs */

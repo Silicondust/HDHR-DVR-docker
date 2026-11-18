@@ -16,6 +16,7 @@ PHP_ETC=/etc/php85
 PHP_INI=${CONF_DIR_PHP}/php.ini
 DVRUI_VARS=/var/www/html/dvrui/vars.php
 DVRUI_TZ_DEFAULT=UTC
+DVRUI_ENABLE_DEFAULT=full
 NGINX_ETC=/etc/nginx
 
 ################
@@ -257,6 +258,34 @@ update_php_tz() {
     ${CMD_SED} -i -E "s|^;?[[:space:]]*date\.timezone[[:space:]]*=.*$|date.timezone = ${DVRUI_TZ}|" ${PHP_INI}
 }
 
+# Check the UI Enable env setting - none, minimal or full (default)
+#   none    - no UI at all: nginx and php-fpm aren't started, just the record engine
+#   minimal - the UI shows the Dashboard and Diagnostics only
+#   full    - the whole UI
+# Written to DVRUI_ENABLE in the UI vars.php; DVRUI_WEB_AUTOSTART tells supervisord
+# whether to start nginx and php-fpm (see supervisord.conf)
+update_ui_enable() {
+    DVRUI_ENABLE=$(echo "${DVRUI_ENABLE}" | tr '[:upper:]' '[:lower:]')
+    if [ -z "${DVRUI_ENABLE}" ] ; then
+        DVRUI_ENABLE=${DVRUI_ENABLE_DEFAULT}
+    fi
+    case "${DVRUI_ENABLE}" in
+        none|minimal|full) ;;
+        *)
+            echo "ERROR: DVRUI_ENABLE [${DVRUI_ENABLE}] is not one of none, minimal or full - using ${DVRUI_ENABLE_DEFAULT}"
+            DVRUI_ENABLE=${DVRUI_ENABLE_DEFAULT}
+            ;;
+    esac
+    if [ "${DVRUI_ENABLE}" = "none" ] ; then
+        echo "INFO: DVRUI_ENABLE is none - the UI and its web server (nginx, php-fpm) are disabled"
+        export DVRUI_WEB_AUTOSTART=false
+    else
+        echo "INFO: DVRUI_ENABLE is ${DVRUI_ENABLE} - starting the UI"
+        export DVRUI_WEB_AUTOSTART=true
+    fi
+    ${CMD_SED} -i -E "s|(const DVRUI_ENABLE[[:space:]]*=[[:space:]]*)['\"][^'\"]*['\"]|\1'${DVRUI_ENABLE}'|" ${DVRUI_VARS}
+}
+
 # start the supervisord
 start_supervisord() {
     /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf
@@ -278,5 +307,6 @@ validate_config
 update_user
 update_nginx_port
 update_php_tz
+update_ui_enable
 start_supervisord
 

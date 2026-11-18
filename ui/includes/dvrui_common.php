@@ -7,7 +7,6 @@
 			curl_setopt($ch, CURLOPT_TIMEOUT, 2);
 			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 			$json = curl_exec($ch);
-			curl_close($ch);
 		} else { 
 			$context = stream_context_create(
 				array('http' => array(
@@ -68,6 +67,12 @@
 		} while (count($active) > 0 || count($queue) > 0);
 		curl_multi_close($mh);
 		return $results;
+	}
+
+	// The full UI (Recordings and series pages) - DVRUI_ENABLE=minimal is the Dashboard
+	// and Diagnostics only (none doesn't start the web server at all). Anything but minimal is full.
+	function dvruiFullUI() {
+		return !defined('DVRUI_Vars::DVRUI_ENABLE') || strtolower(DVRUI_Vars::DVRUI_ENABLE) !== 'minimal';
 	}
 
 	/*
@@ -152,7 +157,6 @@
 			curl_setopt($ch, CURLOPT_POST, 1);
 			curl_setopt($ch, CURLOPT_POSTFIELDS, $vars);
 			$result = curl_exec($ch);
-			curl_close($ch);
 		} else { 
 			$context = stream_context_create(
 				array('http' => array(

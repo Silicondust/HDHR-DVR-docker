@@ -68,6 +68,9 @@ VOLUME ["/dvrrec", "/dvrdata"]
 # Optional PHP timezone for the UI (e.g. Europe/Lisbon), applied at container start - defaults to UTC
 ENV DVRUI_TZ=""
 
+# How much of the UI to run: none (no UI or web server), minimal (Dashboard and Diagnostics) or full - defaults to full
+ENV DVRUI_ENABLE="full"
+
 # Will use this port for mapping engine to the outside world
 EXPOSE 59090
 

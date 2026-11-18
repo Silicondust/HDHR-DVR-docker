@@ -119,6 +119,11 @@
 			$hdhrEntry = str_replace('<!--hdhr_model-->',$hdhr_name_data,$hdhrEntry);
 			$hdhrEntry = str_replace('<!--hdhr_firmware-->',$hdhr->get_engine_firmware($i),$hdhrEntry);
 			$hdhrEntry = str_replace('<!--hdhr_freespace-->',$hdhr->get_engine_freespace($i),$hdhrEntry);
+			// clicking the engine image opens Recordings filtered to this engine (matched by StorageID)
+			// - only in the full UI, the minimal one has no Recordings page
+			$imgLink = dvruiFullUI() ? " class='hdhr_img_link' title='Show recordings on this engine' onClick=\"openEngineRecordings(event, '"
+				. htmlspecialchars(addslashes($hdhr->get_engine_storageId($i)), ENT_QUOTES) . "')\"" : '';
+			$hdhrEntry = str_replace('<!--hdhr_img_link-->',$imgLink,$hdhrEntry);
 			$hdhrEntry = str_replace('<!--hdhr_storageid-->',$hdhr->get_engine_storageId($i),$hdhrEntry);
 			$hdhrEntry = str_replace('<!--hdhr_storageurl-->',$hdhr_storage_url,$hdhrEntry);
 			$hdhrEntry = str_replace('<!--hdhr_image-->',$hdhr->get_engine_image($i),$hdhrEntry);

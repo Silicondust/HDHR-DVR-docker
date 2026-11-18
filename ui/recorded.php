@@ -81,10 +81,12 @@
 		foreach ($engines as $e => $engine) {
 			$engineKey = 'engine' . $e;
 			$engineName = htmlspecialchars($engine['Name']);
+			// lets the dashboard pick this engine in the filter (see openEngineRecordings)
+			$engineAttr = " data-storageid='" . htmlspecialchars($engine['StorageID'], ENT_QUOTES) . "'";
 			$seriesList = getJsonFromUrl($engine['StorageURL'] . '?DisplayGroupID=root');
 
 			if (!is_array($seriesList)) {
-				$options .= "<option value='" . $engineKey . "'>" . $engineName . " - unavailable</option>";
+				$options .= "<option value='" . $engineKey . "'" . $engineAttr . ">" . $engineName . " - unavailable</option>";
 				$messages .= "<p class='recorded_msg' data-engine='" . $engineKey . "'>Unable to load recorded series from "
 					. $engineName . "</p>";
 				continue;
@@ -116,7 +118,7 @@
 					$count++;
 				}
 			}
-			$options .= "<option value='" . $engineKey . "'>" . $engineName . " - " . $count . " series</option>";
+			$options .= "<option value='" . $engineKey . "'" . $engineAttr . ">" . $engineName . " - " . $count . " series</option>";
 			if ($count == 0) {
 				// hidden in the All view - only shown when filtered to this engine
 				$emptyNotes .= "<p class='recorded_msg' data-engine='" . $engineKey . "' data-filtered-only='1' style='display:none'>"
@@ -156,7 +158,7 @@
 			$groupCards[$group] = '';
 			$groupCounts[$group] = 0;
 		}
-		foreach ($allSeries as $series) {
+		foreach ($allSeries as $seriesKey => $series) {
 			// per-engine figures go on each engine line (used when filtered to that engine),
 			// the combined figures on the card (used for All engines)
 			$engineLines = '';
@@ -181,6 +183,8 @@
 			$card = str_replace('<!--recorded_last-->', htmlspecialchars($lastText), $card);
 
 			$image = ($series['Image'] != '') ? $series['Image'] : './images/no-preview.png';
+			// the series page looks the series up again by this key (see series.php)
+			$card = str_replace('<!--recorded_series_key-->', htmlspecialchars($seriesKey, ENT_QUOTES), $card);
 			$card = str_replace('<!--recorded_engine_keys-->', implode(' ', array_keys($series['Engines'])), $card);
 			$card = str_replace('<!--recorded_img_class-->', ($series['Image'] != '') ? '' : ' no_preview', $card);
 			$card = str_replace('<!--recorded_image-->', htmlspecialchars($image, ENT_QUOTES), $card);

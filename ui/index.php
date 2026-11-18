@@ -12,6 +12,7 @@
 	require_once("dashboard.php");
 	require_once("diagnostics.php");
 	require_once("recorded.php");
+	require_once("series.php");
 
 	/* Prepare Ajax */
 	error_log( "Setting up Ajax" );
@@ -25,7 +26,15 @@
 	$ajax->exportFunction("updateServerConfig","port, path");
 	$ajax->exportFunction("openDashboard","");
 	$ajax->exportFunction("openDiagnosticsPage","");
-	$ajax->exportFunction("openRecordedPage","");
+	// The Recordings and series pages (and their actions) are only in the full UI -
+	// DVRUI_ENABLE=minimal is the Dashboard and Diagnostics. Functions that aren't
+	// exported can't be called, so they aren't just hidden.
+	$fullUI = dvruiFullUI();
+	if ($fullUI) {
+		$ajax->exportFunction("openRecordedPage","");
+		$ajax->exportFunction("openSeriesPage","seriesKey, storageId");
+		$ajax->exportFunction("seriesActionPage","seriesKey, storageId, action, items, group");
+	}
 	
 	/* GO */
 	error_log( "Enable Ajax" );
@@ -42,8 +51,15 @@
 	
 	//Build navigation menu for pages
 	error_log( "Build Navigation Pages" );
-	$pageTitles = array('Dashboard', 'Recordings', '.');
-	$pageNames = array('dashboard_page', 'recorded_page', 'diagnostics_page');
+	// series_page stays hidden until a series is opened from Recordings - it then
+	// takes the series title (see openSeries)
+	if ($fullUI) {
+		$pageTitles = array('Dashboard', 'Recordings', '', '.');
+		$pageNames = array('dashboard_page', 'recorded_page', 'series_page', 'diagnostics_page');
+	} else {
+		$pageTitles = array('Dashboard', '.');
+		$pageNames = array('dashboard_page', 'diagnostics_page');
+	}
 	$menu_data = file_get_contents('style/pagemenu.html');
 	$menuEntries = '';
 	$firstPage = true;

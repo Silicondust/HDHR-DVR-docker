@@ -97,7 +97,6 @@
 			curl_setopt($ch, CURLOPT_TIMEOUT, 2);
 			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 			$json = curl_exec($ch);
-			curl_close($ch);
 			$htmlStr .= 'curl returned = ' . $json . '<br/>';
 		} else { 
 			$htmlStr .= 'curl extension = not available <br/>';
@@ -161,7 +160,6 @@
 			curl_setopt($ch, CURLOPT_TIMEOUT, 2);
 			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 			$json = curl_exec($ch);
-			curl_close($ch);
 			$htmlStr .= 'curl returned = ' . $json . '<br/>';
 		} else { 
 			$htmlStr .= 'curl extension = not available <br/>';
