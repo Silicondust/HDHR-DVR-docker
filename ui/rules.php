@@ -104,6 +104,358 @@
 			. ' of ' . $synced[1] . ' record engine' . ($synced[1] == 1 ? '' : 's') . ' updated');
 	}
 
+	/*
+	 * Edit button - the dialog for a rule: its channels, current season (recent only) or all seasons,
+	 * and the start/end padding, with the episodes coming up in the guide. The channels
+	 * to choose from are the ones the upcoming episodes are on (and any the rule
+	 * already has); with nothing upcoming the rule stays on all channels.
+	 */
+	function openRuleEditor($ruleId) {
+		ob_start();
+		$hdhr = new DVRUI_HDHRjson();
+		$ruleId = trim((string)$ruleId);
+		$rule = null;
+		if (preg_match('/^\d+$/', $ruleId)) {
+			$fetched = rulesFetch($hdhr);
+			foreach ((array)$fetched['Rules'] as $r) {
+				if (rulesText($r, 'RecordingRuleID') === $ruleId) {
+					$rule = $r;
+				}
+			}
+		}
+		$tab = new TinyAjaxBehavior(true);
+		$result = ob_get_contents();
+		ob_end_clean();
+		if ($rule === null) {
+			$tab->add(TabInnerHtml::getBehavior("rules_dialog", ''));
+			$tab->add(TabInnerHtml::getBehavior("statusMessage", 'That rule no longer exists - press Reload to see the rules as they are now'));
+			return $tab->getString();
+		}
+		$episodes = rulesUpcoming($hdhr, rulesText($rule, 'SeriesID'));
+		$tab->add(TabInnerHtml::getBehavior("rules_dialog",
+			rulesEditorHtml($rule, $episodes, rulesChannelNames($hdhr, array($rule)))));
+		$tab->add(TabInnerHtml::getBehavior("statusMessage", ($result != '' && $result != NULL) ? $result : getLatestHDHRStatus()));
+		return $tab->getString();
+	}
+
+	/*
+	 * Save from the Edit dialog. SiliconDust updates a rule with Cmd=add for its
+	 * series (it replaces the rule that is there), so every setting is sent. The
+	 * rules are fetched again to check what was saved, the rule is put back in its
+	 * place if the update moved it, and the record engines are told to resync.
+	 * $channels is '' for all channels, or channel numbers separated by |.
+	 */
+	function saveRulePage($ruleId, $channels, $recentOnly, $startPadding, $endPadding) {
+		ob_start();
+		$hdhr = new DVRUI_HDHRjson();
+		$ruleId = trim((string)$ruleId);
+		$channelList = rulesChannelList((string)$channels);
+		$valid = preg_match('/^\d+$/', $ruleId)
+			&& ($channelList !== null)
+			&& in_array((string)$recentOnly, array('0', '1'), true)
+			&& preg_match('/^\d+$/', (string)$startPadding) && (int)$startPadding <= 3600
+			&& preg_match('/^\d+$/', (string)$endPadding) && (int)$endPadding <= 10800;
+		if (!$valid) {
+			return rulesEditorFailed('Unable to save - the settings are not valid');
+		}
+		$before = rulesFetch($hdhr);
+		$rule = null;
+		$afterId = '0';
+		$prevId = '0';
+		foreach (rulesSorted((array)$before['Rules']) as $r) {
+			if (rulesText($r, 'RecordingRuleID') === $ruleId) {
+				$rule = $r;
+				$afterId = $prevId;
+			}
+			if (rulesText($r, 'DateTimeOnly') == '') {
+				$prevId = rulesText($r, 'RecordingRuleID');
+			}
+		}
+		if ($rule === null) {
+			return rulesEditorFailed('Unable to save - that rule no longer exists');
+		}
+		$title = rulesText($rule, 'Title');
+		$seriesId = rulesText($rule, 'SeriesID');
+		$oneTime = rulesText($rule, 'DateTimeOnly');
+		$params = array('DeviceAuth' => rulesDeviceAuth($hdhr), 'Cmd' => 'add', 'SeriesID' => $seriesId,
+			'StartPadding' => (int)$startPadding, 'EndPadding' => (int)$endPadding);
+		if ($oneTime != '') {
+			// a one-time rule keeps its time and channel - only the padding changes
+			$params['DateTimeOnly'] = $oneTime;
+			$params['ChannelOnly'] = rulesText($rule, 'ChannelOnly');
+			$channelList = rulesChannelList($params['ChannelOnly']);
+		} else {
+			$params['ChannelOnly'] = implode('|', $channelList);
+			$params['RecentOnly'] = (string)$recentOnly;
+			// the add replaces the whole rule - keep the limits the dialog doesn't edit
+			foreach (array('TeamOnly', 'AfterOriginalAirdateOnly') as $keep) {
+				if (rulesText($rule, $keep) != '') {
+					$params[$keep] = rulesText($rule, $keep);
+				}
+			}
+		}
+		if ($params['DeviceAuth'] == '' || rulesApiPost($params) === false) {
+			return rulesEditorFailed('Unable to save the rule for ' . $title . ' on the SiliconDust servers');
+		}
+
+		// the rule as it is now (it may have a new ID)
+		$find = function($rules) use ($seriesId, $oneTime) {
+			$prev = '0';
+			foreach (rulesSorted((array)$rules) as $r) {
+				if (rulesText($r, 'SeriesID') === $seriesId && rulesText($r, 'DateTimeOnly') === $oneTime) {
+					return array($r, $prev);
+				}
+				if (rulesText($r, 'DateTimeOnly') == '') {
+					$prev = rulesText($r, 'RecordingRuleID');
+				}
+			}
+			return array(null, '0');
+		};
+		$after = rulesFetch($hdhr);
+		list($saved, $savedAfter) = $find($after['Rules']);
+		if ($saved === null) {
+			return rulesEditorFailed('The rule for ' . $title . ' was not found after saving - press Reload to check it');
+		}
+		if ($oneTime == '' && $savedAfter !== $afterId && $afterId !== rulesText($saved, 'RecordingRuleID')) {
+			// keep its priority
+			rulesApiPost(array('DeviceAuth' => $params['DeviceAuth'], 'Cmd' => 'change',
+				'RecordingRuleID' => rulesText($saved, 'RecordingRuleID'), 'AfterRecordingRuleID' => $afterId));
+			$after = rulesFetch($hdhr);
+			list($saved, $savedAfter) = $find($after['Rules']);
+		}
+
+		// anything SiliconDust didn't take
+		$kept = array();
+		if ($saved !== null) {
+			$savedChannels = rulesChannelList(rulesText($saved, 'ChannelOnly'));
+			$wanted = $channelList;
+			sort($savedChannels);
+			sort($wanted);
+			if ($savedChannels !== $wanted) {
+				$kept[] = 'channels ' . (count($savedChannels) ? implode(', ', $savedChannels) : 'all');
+			}
+			if ($oneTime == '' && (rulesText($saved, 'RecentOnly') == '1') !== ((string)$recentOnly === '1')) {
+				$kept[] = (rulesText($saved, 'RecentOnly') == '1') ? 'current season' : 'all seasons';
+			}
+			if ((int)rulesText($saved, 'StartPadding') !== (int)$startPadding) {
+				$kept[] = 'start ' . rulesPadding(rulesText($saved, 'StartPadding')) . ' early';
+			}
+			if ((int)rulesText($saved, 'EndPadding') !== (int)$endPadding) {
+				$kept[] = 'end ' . rulesPadding(rulesText($saved, 'EndPadding')) . ' late';
+			}
+		}
+		$synced = rulesSyncEngines($hdhr);
+		$message = count($kept)
+			? 'Saved the rule for ' . $title . ', but SiliconDust kept: ' . implode(', ', $kept)
+			: 'Saved the rule for ' . $title;
+		$message .= ' - ' . $synced[0] . ' of ' . $synced[1] . ' record engine' . ($synced[1] == 1 ? '' : 's') . ' updated';
+		$tab = new TinyAjaxBehavior(true);
+		$result = ob_get_contents();
+		ob_end_clean();
+		$tab->add(TabInnerHtml::getBehavior("rules_box", buildRulesPage($after, $hdhr)));
+		$tab->add(TabInnerHtml::getBehavior("rules_dialog", ''));
+		$tab->add(TabInnerHtml::getBehavior("statusMessage", ($result != '' && $result != NULL) ? $result : htmlspecialchars($message)));
+		return $tab->getString();
+	}
+
+	// Saving failed - the dialog stays open with the reason, and can be saved again
+	function rulesEditorFailed($message) {
+		$tab = new TinyAjaxBehavior(true);
+		ob_end_clean();
+		$tab->add(TabInnerHtml::getBehavior("re_footer", rulesEditorFooter($message)));
+		$tab->add(TabInnerHtml::getBehavior("statusMessage", htmlspecialchars($message)));
+		return $tab->getString();
+	}
+
+	// '' or "5.1|7.1" as a list of channel numbers, or null if it isn't one
+	function rulesChannelList($channels) {
+		$list = array();
+		foreach (explode('|', $channels) as $number) {
+			$number = trim($number);
+			if ($number === '') {
+				continue;
+			}
+			if (!preg_match('/^[0-9]+(\.[0-9]+)?$/', $number)) {
+				return null;
+			}
+			$list[$number] = $number;
+		}
+		return array_values($list);
+	}
+
+	// The series' episodes coming up in the guide (api/episodes), soonest first
+	function rulesUpcoming($hdhr, $seriesId) {
+		$auth = rulesDeviceAuth($hdhr);
+		if ($auth == '' || $seriesId == '') {
+			return array();
+		}
+		$episodes = getJsonFromUrl(DVRUI_Vars::DVRUI_apiurl . 'api/episodes?DeviceAuth=' . urlencode($auth)
+			. '&SeriesID=' . urlencode($seriesId));
+		if (!is_array($episodes)) {
+			return array();
+		}
+		$episodes = array_values(array_filter($episodes, 'is_array'));
+		usort($episodes, function($a, $b) {
+			return (int)rulesText($a, 'StartTime') - (int)rulesText($b, 'StartTime');
+		});
+		return $episodes;
+	}
+
+	function rulesEditorHtml($rule, $episodes, $channelNames) {
+		$title = rulesText($rule, 'Title');
+		$oneTime = rulesText($rule, 'DateTimeOnly') != '';
+		$ruleChannels = rulesChannelList(rulesText($rule, 'ChannelOnly'));
+		if ($ruleChannels === null) {
+			$ruleChannels = array();
+		}
+		// channels to choose from: those of the upcoming episodes, then any the rule has
+		$channels = array();
+		foreach ($episodes as $episode) {
+			$number = rulesText($episode, 'ChannelNumber');
+			if ($number != '' && !isset($channels[$number])) {
+				$channels[$number] = array('Name' => rulesText($episode, 'ChannelName'),
+					'Logo' => rulesText($episode, 'ChannelImageURL'), 'Count' => 0);
+			}
+			if ($number != '') {
+				$channels[$number]['Count']++;
+			}
+		}
+		foreach ($ruleChannels as $number) {
+			if (!isset($channels[$number])) {
+				$channels[$number] = array('Name' => isset($channelNames[$number]) ? $channelNames[$number] : '',
+					'Logo' => '', 'Count' => 0);
+			}
+		}
+		uksort($channels, 'strnatcmp');
+		$onlySome = count($ruleChannels) > 0;
+
+		$h = "<div class='modal_overlay' id='rule_editor' data-ruleid='" . htmlspecialchars(rulesText($rule, 'RecordingRuleID'), ENT_QUOTES) . "'"
+			. " onclick='if (event.target == this) closeRuleEditor()'>"
+			. "<div class='modal_box rule_editor' role='dialog' aria-modal='true' aria-labelledby='re_title'>"
+			. "<h3 class='modal_title' id='re_title'>Edit rule &middot; " . htmlspecialchars($title) . "</h3>"
+			. "<form id='re_form' onsubmit='saveRuleEditor(); return false;'>";
+
+		if ($oneTime) {
+			$h .= "<p class='re_note'>A one-time recording - only the padding can be changed.</p>";
+		} else {
+			// channels
+			$h .= "<fieldset class='re_section'><legend>Channels</legend>"
+				. "<label class='re_choice'><input type='radio' name='re_channels' value='all'" . ($onlySome ? '' : ' checked')
+				. " onchange='updateRuleEditor()'/>All channels</label>";
+			if (count($channels)) {
+				$h .= "<label class='re_choice'><input type='radio' name='re_channels' value='only'" . ($onlySome ? ' checked' : '')
+					. " onchange='updateRuleEditor()'/>Only these channels:</label><div class='re_channel_list'>";
+				foreach ($channels as $number => $channel) {
+					$checked = in_array((string)$number, $ruleChannels, true);
+					$h .= "<label class='re_channel'><input type='checkbox' class='re_channel_check' value='"
+						. htmlspecialchars($number, ENT_QUOTES) . "'" . ($checked ? ' checked' : '') . " onchange='updateRuleEditor()'/>";
+					if ($channel['Logo'] != '') {
+						$h .= "<img class='re_channel_logo' src='" . htmlspecialchars($channel['Logo'], ENT_QUOTES) . "' alt='' onerror=\"this.style.display='none'\"/>";
+					}
+					$h .= "<span>" . htmlspecialchars($number . ($channel['Name'] != '' ? ' ' . $channel['Name'] : '')) . "</span>";
+					if ($channel['Count'] == 0) {
+						$h .= " <span class='re_dim'>(nothing upcoming)</span>";
+					}
+					$h .= "</label>";
+				}
+				$h .= "</div>";
+			} else {
+				$h .= "<p class='re_note'>The channels can be chosen once an episode shows up in the guide.</p>";
+			}
+			$h .= "</fieldset>";
+
+			// limits the dialog doesn't change - shown so it's clear they stay
+			$other = array();
+			foreach (rulesOptions($rule) as $option) {
+				if (strpos($option[0], 'Team') === 0 || strpos($option[0], 'Aired after') === 0) {
+					$other[] = $option[0];
+				}
+			}
+			if (count($other)) {
+				$h .= "<p class='re_note re_kept'>Also limited to " . htmlspecialchars(implode(' · ', $other)) . " - kept as it is.</p>";
+			}
+
+			// episodes
+			$recent = rulesText($rule, 'RecentOnly') == '1';
+			$h .= "<fieldset class='re_section'><legend>Seasons</legend>"
+				. "<label class='re_choice'><input type='radio' name='re_recent' value='0'" . ($recent ? '' : ' checked') . "/>All seasons</label>"
+				. "<label class='re_choice'><input type='radio' name='re_recent' value='1'" . ($recent ? ' checked' : '') . "/>Current season</label>"
+				. "</fieldset>";
+		}
+
+		// padding
+		$h .= "<fieldset class='re_section'><legend>Padding</legend><div class='re_padding'>"
+			. "<label>Start <select id='re_start'>" . rulesPaddingOptions(rulesText($rule, 'StartPadding'), 3600) . "</select> early</label>"
+			. "<label>End <select id='re_end'>" . rulesPaddingOptions(rulesText($rule, 'EndPadding'), 10800) . "</select> late</label>"
+			. "</div></fieldset>";
+
+		// what's coming up
+		$h .= "<div class='re_upcoming'><div class='re_upcoming_title'>Coming up in the guide</div>";
+		if (count($episodes)) {
+			$h .= "<div class='re_upcoming_list'><table>";
+			foreach ($episodes as $episode) {
+				$start = (int)rulesText($episode, 'StartTime');
+				$name = trim(rulesText($episode, 'EpisodeNumber') . ' ' . rulesText($episode, 'EpisodeTitle'));
+				$h .= "<tr data-channel='" . htmlspecialchars(rulesText($episode, 'ChannelNumber'), ENT_QUOTES) . "'>"
+					. "<td class='re_when'>" . htmlspecialchars($start > 0 ? date('D ' . dvruiDateFormat() . ' H:i', $start) : '') . "</td>"
+					. "<td class='re_ch'>" . htmlspecialchars(trim(rulesText($episode, 'ChannelNumber') . ' ' . rulesText($episode, 'ChannelName'))) . "</td>"
+					. "<td class='re_ep'>" . htmlspecialchars($name != '' ? $name : rulesText($episode, 'Title')) . "</td>"
+					. "<td class='re_rec'>" . rulesRecordCell(rulesText($episode, 'RecordingRuleExt')) . "</td></tr>";
+			}
+			$h .= "</table></div>";
+		} else {
+			$h .= "<p class='re_none'>There are no episodes of this show coming up in the guide.</p>";
+		}
+		$h .= "</div></form><div id='re_footer'>" . rulesEditorFooter('') . "</div></div></div>";
+		return $h;
+	}
+
+	function rulesEditorFooter($error) {
+		return ($error != '' ? "<p class='re_error'>" . htmlspecialchars($error) . "</p>" : '')
+			. "<div class='modal_buttons'>"
+			. "<button type='button' class='modal_button' onclick='closeRuleEditor()'>Cancel</button>"
+			. "<button type='button' class='modal_button modal_ok' id='re_save' onclick='saveRuleEditor()'>Save</button></div>";
+	}
+
+	// The padding choices (seconds), with the rule's own value if it isn't one of them
+	function rulesPaddingOptions($current, $max) {
+		$values = array(0, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800);
+		$current = (int)$current;
+		if (!in_array($current, $values)) {
+			$values[] = $current;
+			sort($values);
+		}
+		$html = '';
+		foreach ($values as $value) {
+			if ($value > $max && $value != $current) {
+				continue;
+			}
+			$html .= "<option value='" . $value . "'" . ($value == $current ? ' selected' : '') . ">" . rulesPadding($value) . "</option>";
+		}
+		return $html;
+	}
+
+	// What the engine will do with an upcoming episode - a green dot for will record,
+	// a yellow dot for might record (only if not recorded yet) (the words are the tooltip), otherwise the words
+	function rulesRecordCell($ext) {
+		$text = rulesRecordText($ext);
+		$dots = array('RecordDuplicate' => 're_dot_green', 'RecordIfNotRecorded' => 're_dot_yellow');
+		if (isset($dots[$ext])) {
+			return "<span class='re_dot " . $dots[$ext] . "' title='" . htmlspecialchars($text, ENT_QUOTES) . "'"
+				. " role='img' aria-label='" . htmlspecialchars($text, ENT_QUOTES) . "'></span>";
+		}
+		return htmlspecialchars($text);
+	}
+
+	// RecordingRuleExt ("RecordIfNotRecorded") as words
+	function rulesRecordText($ext) {
+		$known = array('RecordIfNotRecorded' => 'Will record if not recorded yet', 'RecordDuplicate' => 'Will record');
+		if (isset($known[$ext])) {
+			return $known[$ext];
+		}
+		return ucfirst(strtolower(trim(preg_replace('/(?<!^)([A-Z])/', ' $1', $ext))));
+	}
+
 	// Page and status message out (ob_start is called by the caller)
 	function rulesResponse($htmlStr, $message) {
 		// the cloud JSON is UTF-8 already - don't re-encode it
@@ -282,8 +634,15 @@
 		$trash = "<svg viewBox='0 0 24 24' width='18' height='18' aria-hidden='true' fill='none' stroke='currentColor'"
 			. " stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
 			. "<path d='M3 6h18'/><path d='M8 6V4h8v2'/><path d='M5 6l1 14h12l1-14'/><path d='M10 11v6M14 11v6'/></svg>";
-		return $entry . "<button type='button' class='rule_delete' draggable='false' title='Delete this rule'"
-			. " aria-label='Delete this rule' onclick='deleteRule(this)'>" . $trash . "</button></div>";
+		// pencil icon
+		$pencil = "<svg viewBox='0 0 24 24' width='18' height='18' aria-hidden='true' fill='none' stroke='currentColor'"
+			. " stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+			. "<path d='M4 20h4l11-11-4-4L4 16v4z'/><path d='M13.5 6.5l4 4'/></svg>";
+		return $entry . "<div class='rule_actions'>"
+			. "<button type='button' class='rule_edit' draggable='false' title='Edit this rule'"
+			. " aria-label='Edit this rule' onclick='editRule(this)'>" . $pencil . "</button>"
+			. "<button type='button' class='rule_delete' draggable='false' title='Delete this rule'"
+			. " aria-label='Delete this rule' onclick='deleteRule(this)'>" . $trash . "</button></div></div>";
 	}
 
 	/*
@@ -326,8 +685,8 @@
 
 	/*
 	 * What the rule records, as array(label, limits-the-rule): the channels (all of
-	 * them unless the rule lists some), then the other limits it has (one time, team,
-	 * recent, aired after) or 'All episodes', then the padding
+	 * them unless the rule lists some), one time, teams, the seasons (current season,
+	 * or all seasons for a series rule), aired after, then the padding
 	 */
 	function rulesOptions($rule, $channelNames = array()) {
 		$options = array();
@@ -343,25 +702,24 @@
 			}
 			$options[] = array((count($list) == 1 ? 'Channel ' : 'Channels ') . implode(', ', $list), true);
 		}
-		$episodeOptions = count($options);
 		$dateTime = rulesText($rule, 'DateTimeOnly');
 		if (preg_match('/^\d+$/', $dateTime)) {
 			$options[] = array('One time: ' . date(dvruiDateFormat() . ' H:i', (int)$dateTime), true);
 		}
-		$team = rulesText($rule, 'TeamOnly');
-		if ($team != '') {
-			$options[] = array('Team: ' . $team, true);
+		// TeamOnly is a | separated list, e.g. "England|Wales"
+		$teams = array_values(array_filter(array_map('trim', explode('|', rulesText($rule, 'TeamOnly'))), 'strlen'));
+		if (count($teams)) {
+			$options[] = array((count($teams) == 1 ? 'Team: ' : 'Teams: ') . implode(', ', $teams), true);
 		}
 		if (rulesText($rule, 'RecentOnly') == '1') {
-			$options[] = array('Recent only', true);
+			$options[] = array('Current season', true);
+		} else if (!preg_match('/^\d+$/', $dateTime)) {
+			$options[] = array('All seasons', false);
 		}
 		// original air dates are midnight UTC
 		$after = rulesText($rule, 'AfterOriginalAirdateOnly');
 		if (preg_match('/^\d+$/', $after)) {
 			$options[] = array('Aired after ' . gmdate(dvruiDateFormat(), (int)$after), true);
-		}
-		if (count($options) == $episodeOptions) {
-			$options[] = array('All episodes', false);
 		}
 		$start = rulesText($rule, 'StartPadding');
 		$end = rulesText($rule, 'EndPadding');

@@ -392,6 +392,88 @@ function deleteRule(button) {
 		});
 }
 
+/* Rules page Edit button - the server fills #rules_dialog with the edit dialog
+ * (see openRuleEditor in rules.php); Save sends the settings back */
+function editRule(button) {
+	var entry = button.closest('.rule_entry');
+	if (!entry) {
+		return;
+	}
+	document.getElementById('rules_dialog').innerHTML = "<div class='modal_overlay' id='rule_editor'>"
+		+ "<div class='modal_box rule_editor'><p class='modal_message'>Loading the rule and the guide...</p></div></div>";
+	openRuleEditor(entry.getAttribute('data-ruleid'));
+}
+
+function closeRuleEditor() {
+	document.getElementById('rules_dialog').innerHTML = '';
+}
+
+// channel boxes only count with "Only these channels"; Save needs at least one then
+function updateRuleEditor() {
+	var only = document.querySelector("#re_form input[name=re_channels][value=only]");
+	var checks = document.querySelectorAll('#re_form .re_channel_check');
+	var any = false;
+	for (var i = 0; i < checks.length; i++) {
+		checks[i].disabled = !(only && only.checked);
+		if (checks[i].checked) {
+			any = true;
+		}
+	}
+	var save = document.getElementById('re_save');
+	if (save) {
+		save.disabled = !!(only && only.checked && !any);
+		save.title = save.disabled ? 'Choose at least one channel' : '';
+	}
+}
+
+function saveRuleEditor() {
+	var editor = document.getElementById('rule_editor');
+	var save = document.getElementById('re_save');
+	if (!editor || !save || save.disabled) {
+		return;
+	}
+	var channels = [];
+	var only = document.querySelector("#re_form input[name=re_channels][value=only]");
+	if (only && only.checked) {
+		var checks = document.querySelectorAll('#re_form .re_channel_check');
+		for (var i = 0; i < checks.length; i++) {
+			if (checks[i].checked) {
+				channels.push(checks[i].value);
+			}
+		}
+	}
+	var recent = document.querySelector("#re_form input[name=re_recent]:checked");
+	save.disabled = true;
+	save.textContent = 'Saving...';
+	saveRulePage(editor.getAttribute('data-ruleid'), channels.join('|'), recent ? recent.value : '0',
+		document.getElementById('re_start').value, document.getElementById('re_end').value);
+}
+
+// a newly opened dialog - set up its channel boxes and focus the first choice;
+// Esc closes it
+document.addEventListener('DOMContentLoaded', function() {
+	var dialog = document.getElementById('rules_dialog');
+	if (dialog && window.MutationObserver) {
+		new MutationObserver(function() {
+			if (document.getElementById('re_form') && !dialog.getAttribute('data-ready')) {
+				dialog.setAttribute('data-ready', '1');
+				updateRuleEditor();
+				var first = document.querySelector('#re_form input, #re_form select');
+				if (first) {
+					first.focus();
+				}
+			} else if (!document.getElementById('re_form')) {
+				dialog.removeAttribute('data-ready');
+			}
+		}).observe(dialog, {childList: true, subtree: true});
+	}
+});
+document.addEventListener('keydown', function(evt) {
+	if (evt.key == 'Escape' && document.getElementById('rule_editor')) {
+		closeRuleEditor();
+	}
+});
+
 /* Series tab close button - hide the tab, drop the series and go back to Recordings */
 function closeSeries(evt) {
 	if (evt) {

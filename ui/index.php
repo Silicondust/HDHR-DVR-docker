@@ -38,6 +38,8 @@
 		$ajax->exportFunction("openRulesPage","");
 		$ajax->exportFunction("moveRulePage","ruleId, afterRuleId");
 		$ajax->exportFunction("deleteRulePage","ruleId");
+		$ajax->exportFunction("openRuleEditor","ruleId");
+		$ajax->exportFunction("saveRulePage","ruleId, channels, recentOnly, startPadding, endPadding");
 	}
 	
 	/* GO */
