@@ -528,6 +528,63 @@ function deleteLogFile(value)
 	rmLogFile(value);
 }
 
+/* Log viewer filter - the check boxes in #logfile_filter show/hide the entries
+ * of each log type. Types switched off stay off when another log file is opened. */
+var hiddenLogTypes = {};
+
+function filterLogTypes()
+{
+	var checks = document.querySelectorAll('#logfile_filter .logfilter_check');
+	var hide = {};
+	var shown = 0;
+	for (var i = 0; i < checks.length; i++) {
+		if (checks[i].checked) {
+			shown++;
+			delete hiddenLogTypes[checks[i].value];
+		} else {
+			hide[checks[i].value] = true;
+			hiddenLogTypes[checks[i].value] = true;
+		}
+	}
+	var lines = document.querySelectorAll('#logfile_box .logline');
+	for (var j = 0; j < lines.length; j++) {
+		lines[j].style.display = hide[lines[j].getAttribute('data-logtype')] ? 'none' : '';
+	}
+	var all = document.getElementById('logfilter_all');
+	if (all) {
+		all.checked = (shown == checks.length);
+		all.indeterminate = (shown > 0 && shown < checks.length);
+	}
+}
+
+function selectAllLogTypes(checked)
+{
+	var checks = document.querySelectorAll('#logfile_filter .logfilter_check');
+	for (var i = 0; i < checks.length; i++) {
+		checks[i].checked = checked;
+	}
+	filterLogTypes();
+}
+
+// a newly loaded log file gets a new filter bar - re-apply the types switched off
+document.addEventListener('DOMContentLoaded', function() {
+	var bar = document.getElementById('logfile_filter');
+	if (bar && window.MutationObserver) {
+		new MutationObserver(function() {
+			var checks = bar.querySelectorAll('.logfilter_check');
+			if (checks.length == 0) {
+				return;
+			}
+			for (var i = 0; i < checks.length; i++) {
+				if (hiddenLogTypes[checks[i].value]) {
+					checks[i].checked = false;
+				}
+			}
+			filterLogTypes();
+		}).observe(bar, {childList: true});
+	}
+});
+
 function updateServer() {
 	var port = document.getElementById('Port').value;
 	var path = document.getElementById('RecordPath').value;

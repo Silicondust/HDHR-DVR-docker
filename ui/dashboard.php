@@ -176,6 +176,31 @@
 		return $listStr;
 	}
 
+	/* Command bar above the log entries - a check box per log type in the file
+	 * (with its count) to show/hide that type, and one to select/unselect all.
+	 * Types are alphabetical, with 'Other' (lines without a type) last. */
+	function logFilterBar($typeCounts, $typeClasses) {
+		if (count($typeCounts) == 0) {
+			return '';
+		}
+		$keys = array_keys($typeCounts);
+		usort($keys, function($a, $b) {
+			if ($a == 'Other' || $b == 'Other') {
+				return ($a == 'Other') - ($b == 'Other');
+			}
+			return strcasecmp($a, $b);
+		});
+		$bar = "<label class='logfilter_all'><input type='checkbox' id='logfilter_all' checked"
+			. " onclick='selectAllLogTypes(this.checked)'/>All</label>";
+		foreach ($keys as $key) {
+			$bar .= "<label class='logfilter_type " . $typeClasses[$key] . "'>"
+				. "<input type='checkbox' class='logfilter_check' value='" . $key . "' checked"
+				. " onclick='filterLogTypes()'/>" . $key
+				. " <span class='logfilter_count'>(" . $typeCounts[$key] . ")</span></label>";
+		}
+		return $bar;
+	}
+
 	function getLogFile($filename) {
 		error_log("*** Parsing Log File ***");
 		// prep
@@ -187,25 +212,40 @@
 		$logfile = new DVRUI_Engine_LogFile($filename);
 		$logEntry = file_get_contents('style/logfile_entry.html');
 		$htmlStr = '';
+		$typeCounts = array();    // filter key => number of entries
+		$typeClasses = array();   // filter key => colour class
 
 		for ($i=0; $i < $logfile->getNumEntry(); $i++) {
 			$entry = $logfile->getEntryAt($i);
 			$entryStr = str_replace('<!--log-time-->',$entry['Timestamp'],$logEntry);
-			
+
 			if ($logfile->isTypeError($i)) {
-				$entryStr = str_replace('<!--logtype-class-->','logTypeError',$entryStr);
+				$typeClass = 'logTypeError';
 			} else if ($logfile->isTypeStatus($i)) {
-				$entryStr = str_replace('<!--logtype-class-->','logTypeStatus',$entryStr);
+				$typeClass = 'logTypeStatus';
 			} else if ($logfile->isTypePlayback($i)) {
-				$entryStr = str_replace('<!--logtype-class-->','logTypePlayback',$entryStr);
+				$typeClass = 'logTypePlayback';
 			} else if ($logfile->isTypeRecording($i)) {
-				$entryStr = str_replace('<!--logtype-class-->','logTypeRecording',$entryStr);
+				$typeClass = 'logTypeRecording';
 			} else if ($logfile->isTypeRecorded($i)) {
-				$entryStr = str_replace('<!--logtype-class-->','logTypeRecorded',$entryStr);
+				$typeClass = 'logTypeRecorded';
 			} else {
-				$entryStr = str_replace('<!--logtype-class-->','logTypeInfo',$entryStr);
+				$typeClass = 'logTypeInfo';
 			}
-			
+			$entryStr = str_replace('<!--logtype-class-->',$typeClass,$entryStr);
+
+			// filter key - the type without its colon, lines without one are 'Other'
+			$typeKey = preg_replace('/[^A-Za-z0-9]/', '', $entry['Type']);
+			if ($typeKey == '') {
+				$typeKey = 'Other';
+			}
+			if (!isset($typeCounts[$typeKey])) {
+				$typeCounts[$typeKey] = 0;
+				$typeClasses[$typeKey] = $typeClass;
+			}
+			$typeCounts[$typeKey]++;
+			$entryStr = str_replace('<!--log-typekey-->',$typeKey,$entryStr);
+
 			$entryStr = str_replace('<!--log-type-->',$entry['Type'],$entryStr);
 			$entryStr = str_replace('<!--logsubtype-class-->','',$entryStr);
 			$entryStr = str_replace('<!--log-subtype-->',$entry['SubType'],$entryStr);
@@ -224,7 +264,10 @@
 		ob_end_clean();
 	
 		//display
+		// entries first - the filter bar going in re-applies any types switched off
 		$tab->add(TabInnerHtml::getBehavior("logfile_box", $htmlStr));
+		$tab->add(TabInnerHtml::getBehavior("logfile_name", htmlspecialchars($filename)));
+		$tab->add(TabInnerHtml::getBehavior("logfile_filter", logFilterBar($typeCounts, $typeClasses)));
 		if ($result != '' && $result != NULL)
 			$tab->add(TabInnerHtml::getBehavior("statusMessage", $result));
 		else
