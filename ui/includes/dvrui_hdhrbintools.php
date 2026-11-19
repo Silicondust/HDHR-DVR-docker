@@ -21,7 +21,8 @@ class DVRUI_HDHRbintools {
 
 	private function exec_bin_version() {
 		if ($this->hdhr_bin != '') {
-			$cmd = $this->hdhr_bin . ' version';
+			// run through sh - the engine file is a script, and may not be executable by the web user
+			$cmd = '/bin/sh ' . escapeshellarg($this->hdhr_bin) . ' version 2>/dev/null';
 			$output = shell_exec($cmd);
 			return $output;
 		}
@@ -30,7 +31,7 @@ class DVRUI_HDHRbintools {
 
 	private function exec_bin_status() {
 		if ($this->hdhr_bin != '') {
-			$cmd = $this->hdhr_bin . ' status';
+			$cmd = '/bin/sh ' . escapeshellarg($this->hdhr_bin) . ' status 2>/dev/null';
 			$output = shell_exec($cmd);
 			return $output;
 		}

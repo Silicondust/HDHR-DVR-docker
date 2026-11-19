@@ -4,19 +4,30 @@
 	 * The page POSTs fn=<function>&args[]=... to index.php. The function must
 	 * be one index.php exported with dvruiAjaxDispatch, and it returns a
 	 * DVRUI_AjaxResponse - a set of element id => html that the page puts
-	 * into those elements. The reply is JSON: {"ok":true,"html":{id:html,...}}
-	 * or {"ok":false,"error":"..."}. */
+	 * into those elements, and optionally data for the page's code. The reply
+	 * is JSON: {"ok":true,"html":{id:html,...},"data":{...}} or
+	 * {"ok":false,"error":"..."}. */
 
 	class DVRUI_AjaxResponse {
 		private $html = array();
+		private $data = array();
 
 		/* Replace the contents of element $id with $html */
 		public function setHtml($id, $html) {
 			$this->html[(string)$id] = dvruiAjaxUtf8((string)$html);
 		}
 
+		/* A value for the page's own code (reply.data.$key) */
+		public function setData($key, $value) {
+			$this->data[(string)$key] = $value;
+		}
+
 		public function getString() {
-			return json_encode(array('ok' => true, 'html' => (object)$this->html),
+			$reply = array('ok' => true, 'html' => (object)$this->html);
+			if (count($this->data) > 0) {
+				$reply['data'] = $this->data;
+			}
+			return json_encode($reply,
 				JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 		}
 	}

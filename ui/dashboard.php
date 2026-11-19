@@ -65,7 +65,8 @@
 			$serverParamEntry = str_replace('<!-- dvrui_param_value -->', $serverConfig->getServerPort(), $serverParamEntry);
 			$htmlStr = str_replace('<!-- dvrui_config_port_value -->', $serverParamEntry, $htmlStr);
 
-			$serverParamEntry = file_get_contents('style/dashboard_ctrls_entry_wr.html');
+			// the engine sets the StorageID - shown, not edited
+			$serverParamEntry = file_get_contents('style/dashboard_ctrls_entry_ro.html');
 			$serverParamEntry = str_replace('<!-- dvrui_param_name -->', 'StorageID', $serverParamEntry);
 			$serverParamEntry = str_replace('<!-- dvrui_param_value -->', $serverConfig->getStorageId(), $serverParamEntry);
 			$htmlStr = str_replace('<!-- dvrui_config_storage_value -->', $serverParamEntry, $htmlStr);

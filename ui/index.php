@@ -8,13 +8,15 @@
 	require_once("includes/dvrui_hdhrbintools.php");
 	require_once("statusmessage.php");
 	require_once("dashboard.php");
+	require_once("includes/dvrui_engine_update.php");
 	require_once("diagnostics.php");
 	require_once("recorded.php");
 	require_once("series.php");
 	require_once("rules.php");
 
 	/* The PHP functions the page can call (see dvruiCall in hdhomerundvr_ui.js) */
-	$exported = array('getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage');
+	$exported = array('getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
+		'checkEngineUpdate', 'updateEngine', 'engineVersion');
 	// The Recordings and series pages (and their actions) are only in the full UI -
 	// DVRUI_ENABLE=minimal is the Dashboard and Diagnostics. Functions that aren't
 	// exported can't be called, so they aren't just hidden.
@@ -75,7 +77,7 @@
 	error_log( "Build Index Page - get version" );
 	$pageName = DVRUI_Vars::DVRUI_name;
 	$UIVersion = "Version:" . DVRUI_Vars::DVRUI_version;
-	$DVRVersion = "Record Engine Version: <i>" . $DVRBinVersion . "</i>";
+	$DVRVersion = "Record Engine Version: <i id='dvr_engine_version'>" . htmlspecialchars($DVRBinVersion) . "</i>";
 	$pagecontent = "";
 
 	// --- include header ---

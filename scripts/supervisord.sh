@@ -294,6 +294,20 @@ update_ui_enable() {
     ${CMD_SED} -i -E "s|(const DVRUI_ENABLE[[:space:]]*=[[:space:]]*)['\"][^'\"]*['\"]|\1'${DVRUI_ENABLE}'|" ${DVRUI_VARS}
 }
 
+# The group that can use the supervisorctl socket - the PHP pool's group, so
+# the UI can restart the record engine to update it (root when there's no UI)
+update_ctl_group() {
+    DVRUI_CTL_GROUP=root
+    if [ "${DVRUI_WEB_AUTOSTART}" = "true" ] && [ -f "${PHP_WWW_CONF}" ] ; then
+        PHP_GROUP=$(${CMD_SED} -n -E 's/^[[:space:]]*group[[:space:]]*=[[:space:]]*([^[:space:];]+).*/\1/p' ${PHP_WWW_CONF} | head -n 1)
+        if [ -n "${PHP_GROUP}" ] && ${CMD_GETENT} group "${PHP_GROUP}" > /dev/null ; then
+            DVRUI_CTL_GROUP=${PHP_GROUP}
+        fi
+    fi
+    echo "INFO: Engine control (supervisorctl) group is ${DVRUI_CTL_GROUP}"
+    export DVRUI_CTL_GROUP
+}
+
 # start the supervisord
 start_supervisord() {
     /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf
@@ -321,5 +335,6 @@ if [ "${DVRUI_WEB_AUTOSTART}" = "true" ] ; then
 else
     echo "INFO: UI disabled - DVRUI_PORT and DVRUI_TZ are not used"
 fi
+update_ctl_group
 start_supervisord
 

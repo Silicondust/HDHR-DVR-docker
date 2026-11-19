@@ -60,97 +60,113 @@ validate_config_file()
 }
 
 ###########################
-# Get latest Record Engine(s) from SiliconDust, and delete any previous
-# Will get Beta (if enabled in conf) and released engine and compare dates
-# and select the newest amnd make it the default
+# Get latest Record Engine(s) from SiliconDust and install the newest
+# Downloads the released engine, and the beta too when BetaEngine=1 in the conf,
+# and installs whichever is newest if it's newer than the installed engine.
+# Runs every time the engine starts - the UI's engine update restarts the dvr
+# program so this installs the newer engine (the UI compares versions the same
+# way, see ui/includes/dvrui_engine_update.php)
 #
+
+# A number that orders versions - 20261107 => 2026110700, 20261107beta2 => 2026110702
+# (0 if it isn't a version)
+version_key()
+{
+	echo "$1" | awk '{
+		if (match($0, /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/)) {
+			date = substr($0, 1, 8); beta = 0
+			if (match($0, /^[0-9]+beta[0-9]+/)) {
+				beta = substr($0, 13) + 0
+				if (beta > 99) beta = 99
+			}
+			printf "%s%02d\n", date, beta
+		} else {
+			print 0
+		}
+	}'
+}
+
+# The version an engine file reports (empty if it isn't one)
+engine_version()
+{
+	if [ -s "$1" ] ; then
+		sh "$1" version 2>/dev/null | awk 'NR==1{print $4}'
+	fi
+}
+
+# Download an engine from $1 to $2 - fails (and removes $2) if the download fails
+download_engine()
+{
+	rm -f "$2"
+	if wget -qO "$2" "$1" && [ -s "$2" ] ; then
+		return 0
+	fi
+	rm -f "$2"
+	return 1
+}
+
 update_engine()
 {
 	echo ${DVR_PFX} "** Installing the HDHomeRunDVR Record Engine"
-	if [ -f  ${DVRData}/${DVRBin} ] ; then
-		curEngineVer=`${DVRData}/${DVRBin} version | awk 'NR==1{print $4}'`
-		if [ ${#curEngineVer} -gt 8 ] ; then
-			curIsBeta=true
-			curBeta=${curEngineVer:12:1}
-			curEngineDate=${curEngineVer%b*}
-		else
-			curIsBeta=false
-			curBeta=0
-			curEngineDate=${curEngineVer}
-		fi
-	else
-			curEngineVer=0
-			curIsBeta=false
-			curBeta=0
-			curEngineDate=${curEngineVer}
+	curEngineVer=`engine_version ${DVRData}/${DVRBin}`
+	if [ -z "$curEngineVer" ] ; then
+		curEngineVer=0
 	fi
-
+	curKey=`version_key $curEngineVer`
 	echo ${DVR_PFX} "** Current Engine Version is ${curEngineVer}"
-	stableEngineVer=""
-	betaEngineVer=""
-	betaBeta=0
-	gotStableDVR=false
-	gotBetaDVR=false
+
+	bestFile=""
+	bestVer=""
+	bestKey=0
 
 	echo ${DVR_PFX} "Downloading latest Stable release"
-	wget -qO ${DVRData}/${DVRBin}_rel ${DownloadURL}
-	if [ $# -ne 0 ] ; then
-		echo ${DVR_PFX} "ERROR in downloading latest Stable DVR binary [$#]"
+	if download_engine ${DownloadURL} ${DVRData}/${DVRBin}_rel ; then
+		stableEngineVer=`engine_version ${DVRData}/${DVRBin}_rel`
+		stableKey=`version_key $stableEngineVer`
+		echo ${DVR_PFX} "Got Engine [$stableEngineVer]"
+		if [ $stableKey -gt 0 ] ; then
+			bestFile=${DVRData}/${DVRBin}_rel
+			bestVer=$stableEngineVer
+			bestKey=$stableKey
+		fi
 	else
-		stableEngineVer=`sh ${DVRData}/${DVRBin}_rel version | awk 'NR==1{print $4}'`
-		echo ${DVR_PFX} "Got Engine $stableEngineVer"
-		gotStableDVR=true
+		echo ${DVR_PFX} "ERROR in downloading latest Stable DVR binary"
 	fi
 
 	if [ "$BetaEngine" = "1" ]; then
 		echo ${DVR_PFX} "Downloading latest Beta release"
-		wget -qO ${DVRData}/${DVRBin}_beta ${BetaURL}
-		if [ $# -ne 0 ] ; then
-			echo ${DVR_PFX} "ERROR in downloading latest Beta DVR binary [$#]"
-		else
-			betaEngineVer=`sh ${DVRData}/${DVRBin}_beta version | awk 'NR==1{print $4}'`
-			if [ "$betaEngineVer" == *"beta"* ] ; then
-				betaBeta=${betaEngineVer:12:1}
-			else
-				betaBeta=0
+		if download_engine ${BetaURL} ${DVRData}/${DVRBin}_beta ; then
+			betaEngineVer=`engine_version ${DVRData}/${DVRBin}_beta`
+			betaKey=`version_key $betaEngineVer`
+			echo ${DVR_PFX} "Got Engine [$betaEngineVer]"
+			if [ $betaKey -gt $bestKey ] ; then
+				bestFile=${DVRData}/${DVRBin}_beta
+				bestVer=$betaEngineVer
+				bestKey=$betaKey
 			fi
-			betaEngineDate=${betaEngineVer%b*}
-			echo ${DVR_PFX} "Got Engine $betaEngineVer [$betaBeta]"
-			gotBetaDVR=true
+		else
+			echo ${DVR_PFX} "ERROR in downloading latest Beta DVR binary"
 		fi
 	fi
 
-	if [ "$gotStableDVR" = false ] && [ "$gotBetaDVR" = false ]; then
+	if [ -z "$bestFile" ] ; then
 		echo ${DVR_PFX} "ERROR have no downloaded engines - leaving the existing binary [$curEngineVer] alone!"
-		return 
-	elif [ "$gotBetaDVR" = true ] ; then
-		echo ${DVR_PFX} "Beta version downloaded - check if [$betaEngineVer] newer than [$curEngineVer]"
-		if [ $betaEngineDate -gt $curEngineDate ]; then
-			echo ${DVR_PFX} "Beta version downloaded is newer date than existing engine - updating..."
-			rm -f  ${DVRData}/${DVRBin}
-			mv ${DVRData}/${DVRBin}_beta ${DVRData}/${DVRBin}
-		elif [ $betaEngineDate -eq $curEngineDate ] && [ $betaBeta -gt $curBeta ] ; then
-			echo ${DVR_PFX} "Beta version downloaded is newer beta than existing engine - updating..."
-			rm -f  ${DVRData}/${DVRBin}
-			mv ${DVRData}/${DVRBin}_beta ${DVRData}/${DVRBin}
-		else
-			echo ${DVR_PFX} "Beta version is not newer than existing engine - not updating"
-		fi
-	else # gotStableDVR = true && gotBetaDVR = false
-		echo ${DVR_PFX} "Stable version downloaded - checking if engine [$stableEngineVer] newer than [$curEngineVer]"
-		if [ $stableEngineVer -gt $curEngineDate ]; then
-			echo ${DVR_PFX} "Stable version downloaded is newer than existing engine - updating..."
-			rm -f  ${DVRData}/${DVRBin}
-			mv ${DVRData}/${DVRBin}_rel ${DVRData}/${DVRBin}
-		else
-			echo ${DVR_PFX} "Stable version downloaded is older or same as existing engine - not updating!"
-		fi
+	elif [ $bestKey -gt $curKey ] ; then
+		echo ${DVR_PFX} "Downloaded engine [$bestVer] is newer than [$curEngineVer] - updating..."
+		rm -f ${DVRData}/${DVRBin}
+		mv $bestFile ${DVRData}/${DVRBin}
+	else
+		echo ${DVR_PFX} "Downloaded engine [$bestVer] is not newer than [$curEngineVer] - not updating"
 	fi
-	rm ${DVRData}/${DVRBin}_beta
-	rm ${DVRData}/${DVRBin}_rel
-	chmod u+rwx ${DVRData}/${DVRBin}
-	EngineVer=`${DVRData}/${DVRBin} version | awk 'NR==1{print $4}'`
-	echo ${DVR_PFX} "Engine Updated to... " ${EngineVer}
+	rm -f ${DVRData}/${DVRBin}_beta ${DVRData}/${DVRBin}_rel
+	if [ -f ${DVRData}/${DVRBin} ] ; then
+		# readable and runnable by all - the UI (web user) asks it for its version
+		chmod 755 ${DVRData}/${DVRBin}
+		EngineVer=`engine_version ${DVRData}/${DVRBin}`
+		echo ${DVR_PFX} "Engine is ... " ${EngineVer}
+	else
+		echo ${DVR_PFX} "ERROR no record engine is installed"
+	fi
 }
 
 ###########################

@@ -85,7 +85,8 @@ function dvruiCallFailed(fn, msg) {
 // The PHP functions the page calls - each sends its arguments to the function of the same name
 $.each(['getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
 	'openRecordedPage', 'openSeriesPage', 'seriesActionPage', 'openRulesPage',
-	'moveRulePage', 'deleteRulePage', 'openRuleEditor', 'saveRulePage'], function(i, fn) {
+	'moveRulePage', 'deleteRulePage', 'openRuleEditor', 'saveRulePage',
+	'checkEngineUpdate', 'updateEngine', 'engineVersion'], function(i, fn) {
 	window[fn] = function() {
 		return dvruiCall(fn, Array.prototype.slice.call(arguments));
 	};
@@ -974,3 +975,135 @@ function updateServer() {
 	updateServerConfig(port, path, streams, beta);
 }
 
+
+/* Dashboard - check for a newer record engine, and update to it. Nothing
+ * happens when the engine is the latest. With a newer one it updates straight
+ * away when the engine log shows nothing recording or about to start, otherwise
+ * it asks first
+ * (the update restarts the engine, which stops any recordings in progress). */
+var engineUpdating = false;
+
+function setEngineBusy(busy) {
+	engineUpdating = busy;
+	var link = document.querySelector('a.dashboard_ctrl_link_engine');
+	if (link) {
+		link.classList.toggle('busy', busy);
+	}
+}
+
+/* Anything recording, about to record, or can't it be told - then ask first */
+function engineUpdateNeedsConfirm(d) {
+	return !d.recordingsKnown || d.recordings.length > 0 || (d.upcoming && d.upcoming.length > 0);
+}
+
+function engineRecordingsMessage(d) {
+	var parts = [];
+	if (!d.recordingsKnown) {
+		parts.push('Could not tell from the engine log whether anything is recording ('
+			+ d.recordingsReason + ').');
+	} else if (d.recordings.length > 0) {
+		parts.push((d.recordings.length == 1 ? '1 recording is' : d.recordings.length + ' recordings are')
+			+ ' in progress:\n' + d.recordings.join('\n'));
+	}
+	if (d.upcoming && d.upcoming.length > 0) {
+		parts.push((d.upcoming.length == 1 ? '1 recording starts' : d.upcoming.length + ' recordings start')
+			+ ' about now:\n' + d.upcoming.join('\n'));
+	}
+	return 'Record engine ' + d.latest + ' is available (running ' + d.current + ').\n\n' + parts.join('\n\n')
+		+ '\n\nUpdating restarts the record engine - recordings in progress or starting during'
+		+ ' the update will be interrupted.';
+}
+
+function confirmEngineUpdate(d) {
+	setEngineBusy(false);
+	showConfirm('Update the record engine?', engineRecordingsMessage(d), 'Update anyway', true, function() {
+		runEngineUpdate('1');
+	});
+}
+
+function checkEngine(evt) {
+	if (evt) {
+		evt.preventDefault();
+	}
+	if (engineUpdating) {
+		return;
+	}
+	setEngineBusy(true);
+	setStatus('Checking for a newer record engine...');
+	checkEngineUpdate().done(function(reply) {
+		var d = (reply && reply.ok) ? reply.data : null;
+		if (!d || d.state != 'newer') {
+			// latest already, or the check failed - the status says which
+			setEngineBusy(false);
+		} else if (!engineUpdateNeedsConfirm(d)) {
+			runEngineUpdate('0');
+		} else {
+			confirmEngineUpdate(d);
+		}
+	}).fail(function() {
+		setEngineBusy(false);
+	});
+}
+
+function runEngineUpdate(confirmed) {
+	setEngineBusy(true);
+	setStatus('Updating the record engine...');
+	updateEngine(confirmed).done(function(reply) {
+		var d = (reply && reply.ok) ? reply.data : null;
+		if (d && d.state == 'updating') {
+			waitForEngine(d.latest, d.current);
+		} else if (d && d.state == 'recording') {
+			// something started recording since the check
+			confirmEngineUpdate(d);
+		} else {
+			setEngineBusy(false);
+		}
+	}).fail(function() {
+		setEngineBusy(false);
+	});
+}
+
+/* The engine downloads and installs the update as it restarts - wait for it
+ * to report the new version (up to 3 minutes) */
+function waitForEngine(expected, previous) {
+	var tries = 0;
+	dvruiLoadingShow();
+	var done = function(msg, reload) {
+		dvruiLoadingHide();
+		setEngineBusy(false);
+		// the dashboard reload sets the status too - show the message after it
+		if (reload && activeTab == 'dashboard_page') {
+			openDashboard().always(function() {
+				setStatus(msg);
+			});
+		} else {
+			setStatus(msg);
+		}
+	};
+	var poll = function() {
+		tries++;
+		engineVersion().done(function(reply) {
+			var version = (reply && reply.ok && reply.data) ? reply.data.version : '';
+			var shown = document.getElementById('dvr_engine_version');
+			if (shown && version) {
+				shown.textContent = version;
+			}
+			if (version == expected) {
+				done('Record engine updated from ' + previous + ' to ' + expected, true);
+			} else if (tries >= 36) {
+				done('The record engine has not reported version ' + expected + ' yet (it reports '
+					+ (version || 'nothing') + ') - check the engine log');
+			} else {
+				setStatus('Record engine restarting to update to ' + expected + '...');
+				setTimeout(poll, 5000);
+			}
+		}).fail(function() {
+			if (tries >= 36) {
+				done('The record engine has not come back after the update - check the engine log');
+			} else {
+				setTimeout(poll, 5000);
+			}
+		});
+	};
+	setTimeout(poll, 5000);
+}
