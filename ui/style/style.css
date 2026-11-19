@@ -1294,9 +1294,13 @@ html {
   flex: 1;
   min-height: 0;
 }
-/* the season list runs the full height of the episode list beside it */
+/* the season list is only as tall as its seasons (not stretched to the bottom of
+ * the window when there are few episodes), up to the height of the space beside
+ * the episodes - then it scrolls */
 #series_body > #series_seasons {
-  align-self: stretch;
+  align-self: flex-start;
+  max-height: 100%;
+  box-sizing: border-box;
   overflow-y: auto;   /* only if there are more seasons than fit */
 }
 #series_body > #series_episode_list {
@@ -1429,12 +1433,63 @@ html {
   font-style: oblique;
   background: #5577a0;
   border-left: 2px #5577a0 solid;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#logfile_name:empty {
+  display: none;
+}
+#logfile_name .logfile_path {
+  flex: 1 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#logfile_name:empty {
-  display: none;
+/* Download button at the right of the path strip */
+.logfile_download {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  font: inherit;
+  font-style: normal;
+  font-size: 0.85em;
+  color: white;
+  background: #172131;
+  border: 1px solid #2c3d57;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.logfile_download:hover,
+.logfile_download:focus-visible {
+  background: #2c3d57;
+  border-color: white;
+}
+/* Diagnostics - title strip with the download button */
+#diagnostics_bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  color: white;
+  background: #5577a0;
+}
+#diagnostics_bar .diagnostics_title {
+  flex: 1 1 auto;
+  font-style: oblique;
+}
+#diagnostics_content:has(#diagnostics_box:empty) .logfile_download {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.logfile_download:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: #172131;
+  border-color: #2c3d57;
 }
 /* Rules page - the account's recording rules, highest priority first */
 #rules_page {

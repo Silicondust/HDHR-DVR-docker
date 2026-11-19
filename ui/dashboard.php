@@ -201,6 +201,18 @@
 		return $bar;
 	}
 
+	/* The strip above the filter bar - the log file's full path, and a button to
+	 * download it (only the log types switched on, when some are switched off) */
+	function logFileNameBar($filename) {
+		return "<span class='logfile_path' title='" . htmlspecialchars($filename, ENT_QUOTES) . "'>"
+			. htmlspecialchars($filename) . "</span>"
+			. "<button type='button' class='logfile_download' data-file='" . htmlspecialchars($filename, ENT_QUOTES) . "'"
+			. " title='Download the log file' onclick='downloadLogFile(this)'>"
+			. "<svg viewBox='0 0 24 24' width='15' height='15' aria-hidden='true'><path fill='none' stroke='currentColor'"
+			. " stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M12 3v12m-5-5 5 5 5-5M4 20h16'/></svg>"
+			. "<span class='logfile_download_label'>Download</span></button>";
+	}
+
 	function getLogFile($filename) {
 		error_log("*** Parsing Log File ***");
 		// prep
@@ -266,7 +278,7 @@
 		//display
 		// entries first - the filter bar going in re-applies any types switched off
 		$tab->add(TabInnerHtml::getBehavior("logfile_box", $htmlStr));
-		$tab->add(TabInnerHtml::getBehavior("logfile_name", htmlspecialchars($filename)));
+		$tab->add(TabInnerHtml::getBehavior("logfile_name", logFileNameBar($filename)));
 		$tab->add(TabInnerHtml::getBehavior("logfile_filter", logFilterBar($typeCounts, $typeClasses)));
 		if ($result != '' && $result != NULL)
 			$tab->add(TabInnerHtml::getBehavior("statusMessage", $result));

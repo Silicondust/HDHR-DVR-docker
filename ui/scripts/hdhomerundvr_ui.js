@@ -47,6 +47,30 @@ function loadTab(tabname, force) {
 }
 var rulesLoaded = false;
 
+/* Diagnostics - save the text shown on the page to hdhrdvr-diagnostics-<date-time>.log
+ * (what is on screen, so the checks aren't run again for the file) */
+function downloadDiagnostics()
+{
+	var box = document.getElementById('diagnostics_box');
+	var text = box ? (box.innerText || box.textContent || '') : '';
+	text = text.replace(/ /g, ' ').replace(/\r?\n/g, '\r\n').replace(/\s+$/, '') + '\r\n';
+	if (text.replace(/\s/g, '') == '') {
+		return;
+	}
+	var d = new Date();
+	var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+	var name = 'hdhrdvr-diagnostics-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate())
+		+ '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + '.log';
+	var url = URL.createObjectURL(new Blob([text], {type: 'text/plain;charset=utf-8'}));
+	var a = document.createElement('a');
+	a.href = url;
+	a.download = name;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
 /* Recorded page - apply the Record engine and Category filters.
  * A card lists every engine the series is on; when filtered to an engine, only
  * that engine's line is kept. Sections with nothing to show are hidden. */
@@ -797,6 +821,40 @@ function filterLogTypes()
 		all.checked = (shown == checks.length);
 		all.indeterminate = (shown > 0 && shown < checks.length);
 	}
+	// the download button says when it will only save the types shown
+	var btn = document.querySelector('#logfile_name .logfile_download');
+	if (btn) {
+		var filtered = (shown < checks.length);
+		btn.title = filtered ? 'Download the log entries shown (the types switched on)' : 'Download the log file';
+		btn.querySelector('.logfile_download_label').textContent = filtered ? 'Download filtered' : 'Download';
+		btn.disabled = (checks.length > 0 && shown == 0);
+	}
+}
+
+/* Download the open log file - the whole file, or only the lines of the
+ * log types switched on in the filter bar when some are switched off */
+function downloadLogFile(btn)
+{
+	var checks = document.querySelectorAll('#logfile_filter .logfilter_check');
+	var types = [];
+	for (var i = 0; i < checks.length; i++) {
+		if (checks[i].checked) {
+			types.push(checks[i].value);
+		}
+	}
+	if (checks.length > 0 && types.length == 0) {
+		return;
+	}
+	var url = 'logdownload.php?file=' + encodeURIComponent(btn.getAttribute('data-file'));
+	if (types.length < checks.length) {
+		url += '&types=' + encodeURIComponent(types.join(','));
+	}
+	var a = document.createElement('a');
+	a.href = url;
+	a.setAttribute('download', '');
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
 }
 
 function selectAllLogTypes(checked)
