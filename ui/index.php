@@ -13,6 +13,7 @@
 	require_once("diagnostics.php");
 	require_once("recorded.php");
 	require_once("series.php");
+	require_once("rules.php");
 
 	/* Prepare Ajax */
 	error_log( "Setting up Ajax" );
@@ -34,6 +35,9 @@
 		$ajax->exportFunction("openRecordedPage","");
 		$ajax->exportFunction("openSeriesPage","seriesKey, storageId");
 		$ajax->exportFunction("seriesActionPage","seriesKey, storageId, action, items, group");
+		$ajax->exportFunction("openRulesPage","");
+		$ajax->exportFunction("moveRulePage","ruleId, afterRuleId");
+		$ajax->exportFunction("deleteRulePage","ruleId");
 	}
 	
 	/* GO */
@@ -52,10 +56,11 @@
 	//Build navigation menu for pages
 	error_log( "Build Navigation Pages" );
 	// series_page stays hidden until a series is opened from Recordings - it then
-	// takes the series title (see openSeries)
+	// takes the series title (see openSeries). Rules follows it, so it comes after
+	// Recordings or the series tab, whichever is showing.
 	if ($fullUI) {
-		$pageTitles = array('Dashboard', 'Recordings', '', '.');
-		$pageNames = array('dashboard_page', 'recorded_page', 'series_page', 'diagnostics_page');
+		$pageTitles = array('Dashboard', 'Recordings', '', 'Rules', '.');
+		$pageNames = array('dashboard_page', 'recorded_page', 'series_page', 'rules_page', 'diagnostics_page');
 	} else {
 		$pageTitles = array('Dashboard', '.');
 		$pageNames = array('dashboard_page', 'diagnostics_page');

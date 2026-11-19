@@ -258,6 +258,25 @@ a.reload_page {
 ul.tabmenu li.series_page {
   display: none;
 }
+/* close button next to the series title - same highlight as the tab when it is open */
+ul.tabmenu li a.series_close {
+  padding: 10px 8px 10px 4px;
+  margin-left: -1px;        /* covers the title's right border - no seam between them */
+  border-left: 0;
+  color: #BBB;
+  font-size: 0.85em;
+  display: flex;            /* stretched to the title's height by the flex tab, X centred */
+  align-items: center;
+}
+ul.tabmenu li a.tablink.active + a.series_close {
+  background-color: #5577a0;
+  color: white;
+}
+ul.tabmenu li a.series_close:hover,
+ul.tabmenu li a.tablink.active + a.series_close:hover {
+  background-color: #c0392b;
+  color: white;
+}
 ul.tabmenu li a.series_page {
   max-width: 250px;
   white-space: nowrap;
@@ -1416,4 +1435,166 @@ html {
 }
 #logfile_name:empty {
   display: none;
+}
+/* Rules page - the account's recording rules, highest priority first */
+#rules_page {
+  position: relative;
+  padding: 0;
+  width: 100%;
+}
+#rules_header {
+  color: white;
+  background: #1e2a3c;
+  margin: 10px 5px 5px 5px;
+  padding: 8px 15px;
+  border: solid 1px #111;
+  box-shadow: 2px 2px 2px #000;
+  font-style: italic;
+}
+#rules_count {
+  font-style: normal;
+  font-weight: bold;
+}
+#rules_list {
+  padding: 5px 10px 10px 5px;
+}
+.rule_entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px 0;
+  padding: 8px 12px 8px 8px;
+  color: white;
+  background: #1e2a3c;
+  box-shadow: 3px 3px 4px #000;
+}
+.rule_priority {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #5577a0;
+  color: white;
+  font-size: 1.1em;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rule_img {
+  flex: none;
+  width: 160px;
+  height: 90px;
+  object-fit: cover;
+  background: #172131;
+}
+.rule_info {
+  flex: 1;
+  min-width: 0;
+}
+.rule_info h4.rule_title {
+  color: white;
+  text-shadow: none;
+  margin: 0 0 3px 0;
+  font-size: 1.15em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rule_synopsis {
+  margin: 0 0 6px 0;
+  color: #BBB;
+  font-size: 0.85em;
+  line-height: 1.3em;
+  display: -webkit-box;          /* at most two lines, the full text is the tooltip */
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rule_options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+.rule_opt {
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.8em;
+  color: #DDD;
+  background: #2c3d57;
+}
+.rule_opt.rule_opt_limit {
+  color: white;
+  background: #5577a0;
+}
+#rules_hint {
+  color: #BBB;
+  font-size: 0.85em;
+}
+/* drag to change the priority */
+.rule_entry[draggable=true] {
+  cursor: grab;
+}
+.rule_entry.rule_dragging {
+  opacity: 0.4;
+}
+.rule_entry.rule_drop_before {
+  box-shadow: 0 -3px 0 #f0c040, 3px 3px 4px #000;
+}
+.rule_entry.rule_drop_after {
+  box-shadow: 0 3px 0 #f0c040, 3px 3px 4px #000;
+}
+.rule_entry.rule_fixed .rule_priority {
+  background: #2c3d57;
+}
+.rule_delete {
+  flex: none;
+  align-self: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e8a0a4;
+  background: #6e2a2e;
+  border: solid 1px #b03a40;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.rule_delete svg {
+  display: block;
+}
+.rule_delete:hover,
+.rule_delete:focus-visible {
+  color: white;
+  background: #b03a40;
+}
+#rules_list.rules_busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+/* window-sized - the header stays, the rules scroll */
+#page > #rules_page {
+  overflow: hidden;
+}
+#rules_content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+#rules_box {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#rules_box > #rules_header {
+  flex: none;
+}
+#rules_box > #rules_list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: #5577a0 #172131;
 }

@@ -33,7 +33,7 @@ Use the DVRUI_ENABLE environment variable to choose how much of the UI runs:
 
 | DVRUI_ENABLE | UI |
 | --------| ------- |
-| full (default) | The whole UI - Dashboard, Recordings (with the series pages and their actions) and Diagnostics |
+| full (default) | The whole UI - Dashboard, Recordings (with the series pages and their actions), Rules (the account's recording rules - change their priority or delete them) and Diagnostics |
 | minimal | The Dashboard and Diagnostics only |
 | none | No UI at all - NGINX and PHP FPM are not started, the container just runs the record engine. DVRUI_PORT and DVRUI_TZ aren't needed (PUID/PGID still apply to the engine) |
 

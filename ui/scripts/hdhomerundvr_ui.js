@@ -31,10 +31,21 @@ function loadTab(tabname, force) {
 			openSeriesPage(currentSeries.key, currentSeries.storageId);
 		}
 	}
+	if (tabname == 'rules_page') {
+		// fetched from the SiliconDust servers once - use Reload to fetch again
+		if (force || !rulesLoaded) {
+			rulesLoaded = true;
+			if (document.getElementById('rules_box').innerHTML == '') {
+				document.getElementById('rules_box').innerHTML = "<p class='recorded_msg'>Loading...</p>";
+			}
+			openRulesPage();
+		}
+	}
 	if (tabname == 'diagnostics_page') {
 		openDiagnosticsPage();
 	}
 }
+var rulesLoaded = false;
 
 /* Recorded page - apply the Record engine and Category filters.
  * A card lists every engine the series is on; when filtered to an engine, only
@@ -245,10 +256,159 @@ function openSeries(evt, img) {
 
 	link.textContent = title;
 	link.title = title;
-	link.parentNode.style.display = 'block';
+	link.parentNode.style.display = 'flex';   // title and close button the same height
+	if (!link.parentNode.querySelector('.series_close')) {
+		// close button next to the title - see closeSeries
+		var close = document.createElement('a');
+		close.href = '#';
+		close.className = 'series_close';
+		close.title = 'Close';
+		close.innerHTML = '&#x2715;';
+		close.onclick = closeSeries;
+		link.parentNode.appendChild(close);
+	}
 	document.getElementById('series_box').innerHTML = "<p class='recorded_msg'>Loading...</p>";
 	openTab({currentTarget: link}, 'series_page');
 	openSeriesPage(currentSeries.key, currentSeries.storageId);
+}
+
+/* Rules page - drag a rule to a new place to change its priority. The drop
+ * line shows where it goes; on drop the rule moves straight away and the server
+ * asks SiliconDust to put it just after the rule above it (0 = top), then the page
+ * is rebuilt from the rules as they now are. One-time rules stay on top. */
+var ruleDrag = null;
+
+function ruleEntryAt(evt) {
+	var el = evt.target;
+	return (el && el.closest) ? el.closest('#rules_list .rule_entry') : null;
+}
+
+function clearRuleDrop() {
+	var marked = document.querySelectorAll('#rules_list .rule_drop_before, #rules_list .rule_drop_after');
+	for (var i = 0; i < marked.length; i++) {
+		marked[i].classList.remove('rule_drop_before', 'rule_drop_after');
+	}
+}
+
+// the rule being dragged goes before or after the one under the pointer
+function ruleDropPlace(evt, entry) {
+	var r = entry.getBoundingClientRect();
+	return (evt.clientY < r.top + r.height / 2) ? 'before' : 'after';
+}
+
+document.addEventListener('dragstart', function(evt) {
+	var entry = ruleEntryAt(evt);
+	if (!entry || entry.getAttribute('draggable') != 'true') {
+		return;
+	}
+	ruleDrag = entry;
+	evt.dataTransfer.effectAllowed = 'move';
+	evt.dataTransfer.setData('text/plain', entry.getAttribute('data-ruleid'));
+	setTimeout(function() { entry.classList.add('rule_dragging'); }, 0);
+});
+
+document.addEventListener('dragover', function(evt) {
+	if (!ruleDrag) {
+		return;
+	}
+	var list = document.getElementById('rules_list');
+	// scroll the list when dragging near its top or bottom
+	if (list) {
+		var lr = list.getBoundingClientRect();
+		if (evt.clientY < lr.top + 40) {
+			list.scrollTop -= 12;
+		} else if (evt.clientY > lr.bottom - 40) {
+			list.scrollTop += 12;
+		}
+	}
+	var entry = ruleEntryAt(evt);
+	clearRuleDrop();
+	if (!entry || entry == ruleDrag || entry.classList.contains('rule_fixed')) {
+		// a one-time rule above can't be passed - dropping on it puts the rule just below it
+		if (entry && entry.classList.contains('rule_fixed')) {
+			evt.preventDefault();
+			entry.classList.add('rule_drop_after');
+		}
+		return;
+	}
+	evt.preventDefault();
+	evt.dataTransfer.dropEffect = 'move';
+	entry.classList.add(ruleDropPlace(evt, entry) == 'before' ? 'rule_drop_before' : 'rule_drop_after');
+});
+
+document.addEventListener('drop', function(evt) {
+	if (!ruleDrag) {
+		return;
+	}
+	evt.preventDefault();
+	var entry = ruleEntryAt(evt);
+	var moving = ruleDrag;
+	clearRuleDrop();
+	if (!entry || entry == moving) {
+		return;
+	}
+	var place = entry.classList.contains('rule_fixed') ? 'after' : ruleDropPlace(evt, entry);
+	var list = entry.parentNode;
+	var before = moving.previousElementSibling;
+	list.insertBefore(moving, place == 'before' ? entry : entry.nextElementSibling);
+	if (moving.previousElementSibling == before) {
+		return;   // dropped where it already was
+	}
+	// new place, numbered straight away while the server is asked
+	var entries = list.querySelectorAll('.rule_entry');
+	for (var i = 0; i < entries.length; i++) {
+		entries[i].querySelector('.rule_priority').textContent = i + 1;
+	}
+	var prev = moving.previousElementSibling;
+	var afterId = (prev && !prev.classList.contains('rule_fixed')) ? prev.getAttribute('data-ruleid') : '0';
+	list.classList.add('rules_busy');
+	moveRulePage(moving.getAttribute('data-ruleid'), afterId);
+});
+
+document.addEventListener('dragend', function() {
+	if (ruleDrag) {
+		ruleDrag.classList.remove('rule_dragging');
+		ruleDrag = null;
+		clearRuleDrop();
+	}
+});
+
+/* Rules page Delete button - confirm, then the server deletes the rule and
+ * rebuilds the page */
+function deleteRule(button) {
+	var entry = button.closest('.rule_entry');
+	if (!entry) {
+		return;
+	}
+	var title = entry.querySelector('.rule_title').textContent;
+	showConfirm('Delete the rule for ' + title + '?',
+		'Nothing more will be recorded for it. Recordings already made are kept.',
+		'Delete rule', true, function() {
+			var list = document.getElementById('rules_list');
+			if (list) {
+				list.classList.add('rules_busy');   // until the page comes back
+			}
+			deleteRulePage(entry.getAttribute('data-ruleid'));
+		});
+}
+
+/* Series tab close button - hide the tab, drop the series and go back to Recordings */
+function closeSeries(evt) {
+	if (evt) {
+		evt.preventDefault();
+	}
+	var link = document.querySelector('a.tablink.series_page');
+	if (link) {
+		link.parentNode.style.display = 'none';
+		link.className = link.className.replace(' active', '');
+	}
+	currentSeries = null;
+	document.getElementById('series_box').innerHTML = '';
+	var rec = document.querySelector('a.tablink.recorded_page');
+	if (rec) {
+		openTab({currentTarget: rec}, 'recorded_page');
+		rec.focus();
+	}
 }
 
 /* Series page engine filter - fetch the series again for the chosen engine (or All),
