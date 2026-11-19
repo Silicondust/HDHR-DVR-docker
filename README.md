@@ -5,8 +5,8 @@ Image based on Alpine Linux https://alpinelinux.org/
 The image uses Alpine 3.24 with PHP 8.5
 
 This container image built does not contain a binary of the silicondust record engine. It is assumed since the user has the ability to download the docker image then they have internet capability to get the latest engine - and thus the image contains a script to download the latest engine when the engine is started. Besides, you need internet for the DVR anyway.
-To update the engine stop the container and then start it again and it will get the latest.
-Note - at this time the nginx and php configurations will be restored to defaults. 
+To update the engine stop the container and then start it again and it will get the latest - or use the engine update on the Dashboard (see [Updating the Record Engine](#updating-the-record-engine)), which doesn't restart the container.
+Note - when the container is restarted the nginx and php configurations will be restored to defaults. 
 
 Is important for HDHomeRun system to have everything on the same Network to scan for tuners, etc.
 thus run the container with the host network selected, i.e.
@@ -42,6 +42,23 @@ By default NGINX will run as a user 'nginx'' and PHP as 'nobody' while the DVR w
 If specified - then everything in /dvrdata and /dvrrec will be changed to the new user IDs.
 
 ## Updating
+
+### Updating the Record Engine
+Every time the record engine starts, the container downloads SiliconDust's latest engine - the release, and the beta too when `BetaEngine=1` in the dvr.conf - and installs whichever is newest, if it is newer than the engine installed.
+
+The Dashboard can also check for a newer engine and update to it without restarting the container - use the button below the config update button, next to the record engine parameters:
+- **Already the latest** - nothing happens; the status bar shows the engine version running and the latest from SiliconDust.
+- **Newer, and nothing recording** - the record engine is restarted, installs the newer engine as it starts, and the header shows the new version once it is running.
+- **Newer, but recordings are in progress or about to start** - you are asked whether to update anyway, with a list of the recordings. Updating restarts the engine, so recordings in progress (or starting during the update) are interrupted.
+
+Recordings are found from the engine log in the record path:
+- **In progress** - `Status: Recording: ...` lines in the engine's latest status block (it writes one every 2 minutes).
+- **About to start** - `Recording: event ... [YYYYMMDD-HHMM] in future` lines for events starting within the next 15 minutes (the bracket is the start time, in UTC), or that started in the last 5 minutes and so may not be in a status block yet. Events that have since logged `Recording: stop ...` or `... already ended` are left out.
+- If the log can't tell - there is no log, it has no status entries, or it hasn't been written to for over 6 minutes - you are asked before updating.
+
+The update is available in the full and minimal UI. The UI restarts the engine through supervisord's control socket (`/run/supervisord.sock`), which only root and the PHP user's group can use.
+
+### Updating the Container
 At this time there isn't much stored in the /dvrdata that needs to persist through an update.
 Yes it would be useful to maintain the Storage UUID in the dvr.conf, but is safe to pretty much delete everything in the /dvrdata between updates (with a container stop and start) and it will be reconstructed on start. You may just need to update the params once more if you change from defaults. 
 
