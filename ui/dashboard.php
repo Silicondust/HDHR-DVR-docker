@@ -1,5 +1,5 @@
 <?php
-	require_once("TinyAjaxBehavior.php");
+	require_once("includes/dvrui_ajax.php");
 	require_once("vars.php");
 	require_once("statusmessage.php");
 	require_once("includes/dvrui_common.php");
@@ -10,7 +10,7 @@
 	function openDashboard() {
 		// prep
 		ob_start();
-		$tab = new TinyAjaxBehavior();
+		$tab = new DVRUI_AjaxResponse();
 
 		//create output
 		$serverConfig = new DVRUI_Engine_Config();
@@ -28,11 +28,11 @@
 		$statusmsg = getLatestHDHRStatus();
 	
 		//display
-		$tab->add(TabInnerHtml::getBehavior("dashboard_box", $htmlStr));
+		$tab->setHtml("dashboard_box", $htmlStr);
 		if ($result != '' && $result != NULL)
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $result));
+			$tab->setHtml("statusMessage", $result);
 		else
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $statusmsg));
+			$tab->setHtml("statusMessage", $statusmsg);
 		return $tab->getString();
 	}
 
@@ -217,7 +217,7 @@
 		error_log("*** Parsing Log File ***");
 		// prep
 		ob_start();
-		$tab = new TinyAjaxBehavior();
+		$tab = new DVRUI_AjaxResponse();
 		$configFile = new DVRUI_Engine_Config();
 
 		//create output
@@ -277,20 +277,20 @@
 	
 		//display
 		// entries first - the filter bar going in re-applies any types switched off
-		$tab->add(TabInnerHtml::getBehavior("logfile_box", $htmlStr));
-		$tab->add(TabInnerHtml::getBehavior("logfile_name", logFileNameBar($filename)));
-		$tab->add(TabInnerHtml::getBehavior("logfile_filter", logFilterBar($typeCounts, $typeClasses)));
+		$tab->setHtml("logfile_box", $htmlStr);
+		$tab->setHtml("logfile_name", logFileNameBar($filename));
+		$tab->setHtml("logfile_filter", logFilterBar($typeCounts, $typeClasses));
 		if ($result != '' && $result != NULL)
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $result));
+			$tab->setHtml("statusMessage", $result);
 		else
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $statusmsg));
+			$tab->setHtml("statusMessage", $statusmsg);
 		return $tab->getString();
 	}
 
 	function updateServerConfig($port,$path,$streams,$beta) {
 		// prep
 		ob_start();
-		$tab = new TinyAjaxBehavior();
+		$tab = new DVRUI_AjaxResponse();
 		
 		//create output
 		$serverConfig = new DVRUI_Engine_Config();
@@ -316,11 +316,11 @@
 		ob_end_clean();
 		
 		//display
-		$tab->add(TabInnerHtml::getBehavior("dashboard_box", $htmlStr));
+		$tab->setHtml("dashboard_box", $htmlStr);
 		if ($result != '' && $result != NULL)
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $result));
+			$tab->setHtml("statusMessage", $result);
 		else
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $statusmsg));
+			$tab->setHtml("statusMessage", $statusmsg);
 		return $tab->getString();
 	}
 

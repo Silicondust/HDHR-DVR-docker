@@ -10,6 +10,87 @@
  *****************************************************************************/
 
 
+/* Ajax - call an exported PHP function (see dvruiAjaxDispatch in
+ * includes/dvrui_ajax.php). The reply is a set of element id => html, which
+ * replaces the contents of those elements. A spinner shows while calls run. */
+var dvruiSpinner = null;
+var dvruiLoading = 0;
+
+function dvruiLoadingShow() {
+	var loading = document.getElementById('loading');
+	if (!loading) {
+		loading = document.createElement('div');
+		loading.id = 'loading';
+		document.body.appendChild(loading);
+	}
+	if (!dvruiSpinner && typeof Spinner !== 'undefined') {
+		dvruiSpinner = new Spinner({lines: 16, length: 28, width: 10, radius: 42, scale: 1,
+			corners: 1, color: '#5577a0', opacity: 0.25, rotate: 0, direction: 1, speed: 2,
+			trail: 60, fps: 20, zIndex: 2e9, className: 'spinner', top: '50%', left: '50%',
+			shadow: false, hwaccel: false, position: 'absolute'});
+	}
+	if (dvruiSpinner) {
+		dvruiSpinner.spin();
+		loading.appendChild(dvruiSpinner.el);
+	}
+	loading.style.display = 'block';
+	dvruiLoading++;
+}
+
+function dvruiLoadingHide() {
+	dvruiLoading--;
+	if (dvruiLoading < 1) {
+		dvruiLoading = 0;
+		var loading = document.getElementById('loading');
+		if (loading) {
+			if (dvruiSpinner) {
+				dvruiSpinner.stop();
+			}
+			loading.style.display = 'none';
+		}
+	}
+}
+
+function dvruiCall(fn, args) {
+	dvruiLoadingShow();
+	return $.ajax({
+		url: window.location.pathname,
+		type: 'POST',
+		dataType: 'json',
+		data: {fn: fn, args: $.map(args, function(a) { return (a === undefined || a === null) ? '' : String(a); })}
+	}).done(function(reply) {
+		if (!reply || !reply.ok) {
+			dvruiCallFailed(fn, reply && reply.error ? reply.error : 'no reply');
+			return;
+		}
+		$.each(reply.html, function(id, html) {
+			var el = document.getElementById(id);
+			if (el) {
+				el.innerHTML = html;
+			}
+		});
+	}).fail(function(xhr, status, err) {
+		var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : (err || status);
+		dvruiCallFailed(fn, msg + (xhr.status ? ' (HTTP ' + xhr.status + ')' : ''));
+	}).always(dvruiLoadingHide);
+}
+
+function dvruiCallFailed(fn, msg) {
+	var el = document.getElementById('statusMessage');
+	if (el) {
+		el.textContent = 'Request ' + fn + ' failed: ' + msg;
+	}
+}
+
+// The PHP functions the page calls - each sends its arguments to the function of the same name
+$.each(['getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
+	'openRecordedPage', 'openSeriesPage', 'seriesActionPage', 'openRulesPage',
+	'moveRulePage', 'deleteRulePage', 'openRuleEditor', 'saveRulePage'], function(i, fn) {
+	window[fn] = function() {
+		return dvruiCall(fn, Array.prototype.slice.call(arguments));
+	};
+});
+
 // Page currently shown, and whether the Recorded series have been fetched yet
 var activeTab = '';
 var recordedLoaded = false;

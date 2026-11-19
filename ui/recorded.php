@@ -1,5 +1,5 @@
 <?php
-	require_once("TinyAjaxBehavior.php");
+	require_once("includes/dvrui_ajax.php");
 	require_once("vars.php");
 	require_once("statusmessage.php");
 	require_once("includes/dvrui_common.php");
@@ -13,7 +13,7 @@
 		// prep
 		ob_start();
 		// Series data from the engine is already UTF-8 - don't re-encode it
-		$tab = new TinyAjaxBehavior(true);
+		$tab = new DVRUI_AjaxResponse();
 
 		//create output
 		$htmlStr = loadRecordedSeries();
@@ -25,11 +25,11 @@
 		$statusmsg = getLatestHDHRStatus();
 
 		//display
-		$tab->add(TabInnerHtml::getBehavior("recorded_box", $htmlStr));
+		$tab->setHtml("recorded_box", $htmlStr);
 		if ($result != '' && $result != NULL)
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $result));
+			$tab->setHtml("statusMessage", $result);
 		else
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $statusmsg));
+			$tab->setHtml("statusMessage", $statusmsg);
 		return $tab->getString();
 	}
 

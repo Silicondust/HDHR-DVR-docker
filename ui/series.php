@@ -1,5 +1,5 @@
 <?php
-	require_once("TinyAjaxBehavior.php");
+	require_once("includes/dvrui_ajax.php");
 	require_once("vars.php");
 	require_once("statusmessage.php");
 	require_once("includes/dvrui_common.php");
@@ -20,7 +20,7 @@
 		// prep
 		ob_start();
 		// Episode data from the engine is already UTF-8 - don't re-encode it
-		$tab = new TinyAjaxBehavior(true);
+		$tab = new DVRUI_AjaxResponse();
 
 		//create output
 		$htmlStr = buildSeriesPage(getRecordEngines(), (string)$seriesKey, (string)$storageId);
@@ -32,11 +32,11 @@
 		$statusmsg = getLatestHDHRStatus();
 
 		//display
-		$tab->add(TabInnerHtml::getBehavior("series_box", $htmlStr));
+		$tab->setHtml("series_box", $htmlStr);
 		if ($result != '' && $result != NULL)
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $result));
+			$tab->setHtml("statusMessage", $result);
 		else
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $statusmsg));
+			$tab->setHtml("statusMessage", $statusmsg);
 		return $tab->getString();
 	}
 
@@ -51,7 +51,7 @@
 	 */
 	function seriesActionPage($seriesKey, $storageId, $action, $items, $activeGroup) {
 		ob_start();
-		$tab = new TinyAjaxBehavior(true);
+		$tab = new DVRUI_AjaxResponse();
 
 		$engines = getRecordEngines();
 		$status = seriesRunAction($engines, (string)$seriesKey, (string)$action, (string)$items);
@@ -60,8 +60,8 @@
 		$result = ob_get_contents();
 		ob_end_clean();
 
-		$tab->add(TabInnerHtml::getBehavior("series_box", $htmlStr));
-		$tab->add(TabInnerHtml::getBehavior("statusMessage", ($result != '' && $result != NULL) ? $result : htmlspecialchars($status)));
+		$tab->setHtml("series_box", $htmlStr);
+		$tab->setHtml("statusMessage", ($result != '' && $result != NULL) ? $result : htmlspecialchars($status));
 		return $tab->getString();
 	}
 

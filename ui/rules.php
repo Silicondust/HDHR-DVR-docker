@@ -1,5 +1,5 @@
 <?php
-	require_once("TinyAjaxBehavior.php");
+	require_once("includes/dvrui_ajax.php");
 	require_once("vars.php");
 	require_once("statusmessage.php");
 	require_once("includes/dvrui_common.php");
@@ -123,18 +123,18 @@
 				}
 			}
 		}
-		$tab = new TinyAjaxBehavior(true);
+		$tab = new DVRUI_AjaxResponse();
 		$result = ob_get_contents();
 		ob_end_clean();
 		if ($rule === null) {
-			$tab->add(TabInnerHtml::getBehavior("rules_dialog", ''));
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", 'That rule no longer exists - press Reload to see the rules as they are now'));
+			$tab->setHtml("rules_dialog", '');
+			$tab->setHtml("statusMessage", 'That rule no longer exists - press Reload to see the rules as they are now');
 			return $tab->getString();
 		}
 		$episodes = rulesUpcoming($hdhr, rulesText($rule, 'SeriesID'));
-		$tab->add(TabInnerHtml::getBehavior("rules_dialog",
-			rulesEditorHtml($rule, $episodes, rulesChannelNames($hdhr, array($rule)))));
-		$tab->add(TabInnerHtml::getBehavior("statusMessage", ($result != '' && $result != NULL) ? $result : getLatestHDHRStatus()));
+		$tab->setHtml("rules_dialog",
+			rulesEditorHtml($rule, $episodes, rulesChannelNames($hdhr, array($rule))));
+		$tab->setHtml("statusMessage", ($result != '' && $result != NULL) ? $result : getLatestHDHRStatus());
 		return $tab->getString();
 	}
 
@@ -249,21 +249,21 @@
 			? 'Saved the rule for ' . $title . ', but SiliconDust kept: ' . implode(', ', $kept)
 			: 'Saved the rule for ' . $title;
 		$message .= ' - ' . $synced[0] . ' of ' . $synced[1] . ' record engine' . ($synced[1] == 1 ? '' : 's') . ' updated';
-		$tab = new TinyAjaxBehavior(true);
+		$tab = new DVRUI_AjaxResponse();
 		$result = ob_get_contents();
 		ob_end_clean();
-		$tab->add(TabInnerHtml::getBehavior("rules_box", buildRulesPage($after, $hdhr)));
-		$tab->add(TabInnerHtml::getBehavior("rules_dialog", ''));
-		$tab->add(TabInnerHtml::getBehavior("statusMessage", ($result != '' && $result != NULL) ? $result : htmlspecialchars($message)));
+		$tab->setHtml("rules_box", buildRulesPage($after, $hdhr));
+		$tab->setHtml("rules_dialog", '');
+		$tab->setHtml("statusMessage", ($result != '' && $result != NULL) ? $result : htmlspecialchars($message));
 		return $tab->getString();
 	}
 
 	// Saving failed - the dialog stays open with the reason, and can be saved again
 	function rulesEditorFailed($message) {
-		$tab = new TinyAjaxBehavior(true);
+		$tab = new DVRUI_AjaxResponse();
 		ob_end_clean();
-		$tab->add(TabInnerHtml::getBehavior("re_footer", rulesEditorFooter($message)));
-		$tab->add(TabInnerHtml::getBehavior("statusMessage", htmlspecialchars($message)));
+		$tab->setHtml("re_footer", rulesEditorFooter($message));
+		$tab->setHtml("statusMessage", htmlspecialchars($message));
 		return $tab->getString();
 	}
 
@@ -459,16 +459,16 @@
 	// Page and status message out (ob_start is called by the caller)
 	function rulesResponse($htmlStr, $message) {
 		// the cloud JSON is UTF-8 already - don't re-encode it
-		$tab = new TinyAjaxBehavior(true);
+		$tab = new DVRUI_AjaxResponse();
 		$result = ob_get_contents();
 		ob_end_clean();
-		$tab->add(TabInnerHtml::getBehavior("rules_box", $htmlStr));
+		$tab->setHtml("rules_box", $htmlStr);
 		if ($result != '' && $result != NULL) {
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", $result));
+			$tab->setHtml("statusMessage", $result);
 		} else if ($message != '') {
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", htmlspecialchars($message)));
+			$tab->setHtml("statusMessage", htmlspecialchars($message));
 		} else {
-			$tab->add(TabInnerHtml::getBehavior("statusMessage", getLatestHDHRStatus()));
+			$tab->setHtml("statusMessage", getLatestHDHRStatus());
 		}
 		return $tab->getString();
 	}

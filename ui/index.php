@@ -3,9 +3,7 @@
 	require_once("vars.php");
 	require_once("includes/dvrui_debug.php");
 
-	define('TINYAJAX_PATH', '.');
-	require_once("TinyAjax.php");
-	require_once("TinyAjaxBehavior.php");
+	require_once("includes/dvrui_ajax.php");
 
 	require_once("includes/dvrui_hdhrbintools.php");
 	require_once("statusmessage.php");
@@ -15,36 +13,19 @@
 	require_once("series.php");
 	require_once("rules.php");
 
-	/* Prepare Ajax */
-	error_log( "Setting up Ajax" );
-	$ajax = new TinyAjax();
-	$ajax->setRequestType("POST");    // Change request-type from GET to POST
-	$ajax->showLoading();             // Show loading while callback is in progress
-	
-	/* Export the PHP Interface */
-	error_log( "Setting up Ajax functions" );
-	$ajax->exportFunction("getLogFile", "filename");
-	$ajax->exportFunction("updateServerConfig","port, path");
-	$ajax->exportFunction("openDashboard","");
-	$ajax->exportFunction("openDiagnosticsPage","");
+	/* The PHP functions the page can call (see dvruiCall in hdhomerundvr_ui.js) */
+	$exported = array('getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage');
 	// The Recordings and series pages (and their actions) are only in the full UI -
 	// DVRUI_ENABLE=minimal is the Dashboard and Diagnostics. Functions that aren't
 	// exported can't be called, so they aren't just hidden.
 	$fullUI = dvruiFullUI();
 	if ($fullUI) {
-		$ajax->exportFunction("openRecordedPage","");
-		$ajax->exportFunction("openSeriesPage","seriesKey, storageId");
-		$ajax->exportFunction("seriesActionPage","seriesKey, storageId, action, items, group");
-		$ajax->exportFunction("openRulesPage","");
-		$ajax->exportFunction("moveRulePage","ruleId, afterRuleId");
-		$ajax->exportFunction("deleteRulePage","ruleId");
-		$ajax->exportFunction("openRuleEditor","ruleId");
-		$ajax->exportFunction("saveRulePage","ruleId, channels, recentOnly, startPadding, endPadding");
+		array_push($exported, 'openRecordedPage', 'openSeriesPage', 'seriesActionPage',
+			'openRulesPage', 'moveRulePage', 'deleteRulePage', 'openRuleEditor', 'saveRulePage');
 	}
-	
-	/* GO */
-	error_log( "Enable Ajax" );
-	$ajax->process(); // Process our callback
+
+	/* An ajax call runs its function and exits here */
+	dvruiAjaxDispatch($exported);
 
 	// Prep data for the page
 	error_log( "Get latest Status" );
@@ -101,7 +82,6 @@
 	error_log( "Build Index Page - header" );
 	$header = file_get_contents('style/header.html');
 	$pagecontent = str_replace('[[pagetitle]]',$pageName,$header);
-	$pagecontent = str_replace('<!-- tinyAjax -->',$ajax->drawJavaScript(false, true),$pagecontent);
 
 	// --- Build Body ---
 	error_log( "Build Index Page - body" );
