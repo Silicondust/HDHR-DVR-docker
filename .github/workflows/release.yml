@@ -1,0 +1,135 @@
+# Builds the container image and publishes it when a GitHub release is published.
+#
+# The release tag must match the VERSION file (v3.3.1 or 3.3.1 for VERSION 3.3.1).
+# The image is built for amd64, arm64 and arm/v7, smoke-tested (amd64), then pushed
+# with the version and latest tags to:
+#   docker.io/demonrik/hdhrdvr-docker     (while the DOCKERHUB_USERNAME and
+#                                          DOCKERHUB_TOKEN repository secrets are set -
+#                                          remove them to stop publishing there)
+#   ghcr.io/silicondust/hdhrdvr-docker    (when PUBLISH_GHCR below is 'true' - uses the
+#                                          workflow's GITHUB_TOKEN; off until the
+#                                          organization's package settings are confirmed)
+name: Release image
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # 'true' to publish to ghcr.io as well - the intended home of the image
+  PUBLISH_GHCR: 'false'
+  GHCR_IMAGE: ghcr.io/silicondust/hdhrdvr-docker
+  DOCKERHUB_IMAGE: docker.io/demonrik/hdhrdvr-docker
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check the release matches VERSION
+        id: version
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          tag="${{ github.event.release.tag_name }}"
+          if [ "${tag#v}" != "$version" ]; then
+            echo "::error::Release tag $tag does not match VERSION $version"
+            exit 1
+          fi
+          if ! grep -q "DVRUI_version[[:space:]]*=\"$version\"" ui/vars.php; then
+            echo "::error::DVRUI_version in ui/vars.php is not $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Image tags
+        id: tags
+        run: |
+          v=${{ steps.version.outputs.version }}
+          tags=""
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            tags="$DOCKERHUB_IMAGE:$v,$DOCKERHUB_IMAGE:latest"
+          else
+            echo "::notice::Docker Hub secrets not set - not publishing to Docker Hub"
+          fi
+          if [ "$PUBLISH_GHCR" = "true" ]; then
+            tags="${tags:+$tags,}$GHCR_IMAGE:$v,$GHCR_IMAGE:latest"
+          fi
+          if [ -z "$tags" ]; then
+            echo "::error::Nowhere to publish - set the Docker Hub secrets or PUBLISH_GHCR"
+            exit 1
+          fi
+          echo "Publishing: $tags"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # amd64 first, loaded locally, to check the UI comes up before anything is pushed
+      - name: Build for the smoke test (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: hdhrdvr-docker:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke -p 8080:80 hdhrdvr-docker:smoke
+          for _ in $(seq 1 60); do
+            [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)" = "200" ] && break
+            sleep 2
+          done
+          fail=0
+          check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got [$2] expected [$3]"; fail=1; fi; }
+          check "version in image" "$(docker exec smoke cat /HDHomeRunDVR/VERSION | tr -d '[:space:]')" "${{ steps.version.outputs.version }}"
+          check "php lint" "$(docker exec smoke sh -c 'for f in $(find /var/www/html/dvrui -name "*.php"); do php85 -l "$f" > /dev/null || echo "$f"; done')" ""
+          check "ui" "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)" "200"
+          check "ajax dashboard" "$(curl -s --data fn=openDashboard http://127.0.0.1:8080/index.php | head -c 10)" '{"ok":true'
+          check "ajax unknown function" "$(curl -s -o /dev/null -w '%{http_code}' --data fn=bogus http://127.0.0.1:8080/index.php)" "400"
+          check "jquery" "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/scripts/jquery-3.7.1.min.js)" "200"
+          check "php errors" "$(docker exec smoke sh -c 'cat /tmp/php-hdhomerundvr-ui.log 2>/dev/null | grep -ci "fatal\|warning"')" "0"
+          if [ $fail -ne 0 ]; then
+            docker logs smoke 2>&1 | tail -50
+            exit 1
+          fi
+
+      - name: Log in to GitHub Container Registry
+        if: env.PUBLISH_GHCR == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Build and push (amd64, arm64, arm/v7)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

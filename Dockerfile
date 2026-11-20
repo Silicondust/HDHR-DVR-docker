@@ -1,6 +1,11 @@
 FROM alpine:3.24.4
 WORKDIR /
 
+# Links the image (on ghcr.io) to its source repository
+LABEL org.opencontainers.image.source="https://github.com/Silicondust/HDHR-DVR-docker"
+LABEL org.opencontainers.image.description="Docker wrapper for SiliconDust's HDHomeRun DVR record engine, with a web management UI"
+LABEL org.opencontainers.image.licenses="MIT"
+
 # Basics
 RUN echo "UTC" > /etc/timezone
 RUN apk add --no-cache nginx supervisor wget grep curl sqlite shadow

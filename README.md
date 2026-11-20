@@ -1,8 +1,12 @@
 # HDHR-DVR-docker
-Docker Wrapper for SiliconDust's HDHomeRun DVR Record Engine
+Docker Wrapper for SiliconDust's HDHomeRun DVR Record Engine with UI for DVR Management
+
+Source: https://github.com/Silicondust/HDHR-DVR-docker (see [Source and License](#source-and-license))
+
+Image: `demonrik/hdhrdvr-docker` on Docker Hub - moving to `ghcr.io/silicondust/hdhrdvr-docker` (see [Images](#images))
 
 Image based on Alpine Linux https://alpinelinux.org/
-The image uses Alpine 3.24 with PHP 8.5
+The image uses Alpine 3.24 with PHP 8.5, and NGINX.
 
 This container image built does not contain a binary of the silicondust record engine. It is assumed since the user has the ability to download the docker image then they have internet capability to get the latest engine - and thus the image contains a script to download the latest engine when the engine is started. Besides, you need internet for the DVR anyway.
 To update the engine stop the container and then start it again and it will get the latest - or use the engine update on the Dashboard (see [Updating the Record Engine](#updating-the-record-engine)), which doesn't restart the container.
@@ -44,17 +48,12 @@ If specified - then everything in /dvrdata and /dvrrec will be changed to the ne
 ## Updating
 
 ### Updating the Record Engine
-Every time the record engine starts, the container downloads SiliconDust's latest engine - the release, and the beta too when `BetaEngine=1` in the dvr.conf - and installs whichever is newest, if it is newer than the engine installed.
+Every time the container starts, the container downloads SiliconDust's latest engine - the release, and the beta too when `BetaEngine=1` in the dvr.conf - and installs whichever is newest, if it is newer than the engine installed.
 
 The Dashboard can also check for a newer engine and update to it without restarting the container - use the button below the config update button, next to the record engine parameters:
 - **Already the latest** - nothing happens; the status bar shows the engine version running and the latest from SiliconDust.
 - **Newer, and nothing recording** - the record engine is restarted, installs the newer engine as it starts, and the header shows the new version once it is running.
 - **Newer, but recordings are in progress or about to start** - you are asked whether to update anyway, with a list of the recordings. Updating restarts the engine, so recordings in progress (or starting during the update) are interrupted.
-
-Recordings are found from the engine log in the record path:
-- **In progress** - `Status: Recording: ...` lines in the engine's latest status block (it writes one every 2 minutes).
-- **About to start** - `Recording: event ... [YYYYMMDD-HHMM] in future` lines for events starting within the next 15 minutes (the bracket is the start time, in UTC), or that started in the last 5 minutes and so may not be in a status block yet. Events that have since logged `Recording: stop ...` or `... already ended` are left out.
-- If the log can't tell - there is no log, it has no status entries, or it hasn't been written to for over 6 minutes - you are asked before updating.
 
 The update is available in the full and minimal UI. The UI restarts the engine through supervisord's control socket (`/run/supervisord.sock`), which only root and the PHP user's group can use.
 
@@ -104,3 +103,34 @@ docker run -d --name dvr \
   -v /path/to/hdhomerun/recordings:/dvrrec \
   demonrik/hdhrdvr-docker
 ```
+
+## Images
+The image is published on Docker Hub for amd64, arm64 and arm/v7 (32-bit, e.g. older Raspberry Pi), tagged with the version and `latest`:
+```
+docker pull demonrik/hdhrdvr-docker:latest
+```
+
+### Moving to the GitHub Container Registry
+Now that the project is maintained by SiliconDust, our intention is to release the image through the GitHub Container Registry as `ghcr.io/silicondust/hdhrdvr-docker`.
+While we work through the logistics of that, releases continue to be published on Docker Hub as `demonrik/hdhrdvr-docker` - keep using that for now. This README will be updated when images are available on ghcr.io, and releases will continue on Docker Hub for a while after that.
+
+When you do move, only the image name changes: keep the same volumes and environment variables, and the container carries on with the same config, engine and recordings. For example:
+```
+docker pull ghcr.io/silicondust/hdhrdvr-docker:latest
+docker stop dvr && docker rm dvr
+docker run -d --name dvr ... ghcr.io/silicondust/hdhrdvr-docker    # the same options as before
+```
+With docker compose, change the `image:` line to `ghcr.io/silicondust/hdhrdvr-docker` and run `docker compose up -d`.
+
+## Source and License
+The source is at https://github.com/Silicondust/HDHR-DVR-docker - originally written by Rik Dunphy, and now maintained by SiliconDust.
+Report issues and send pull requests there.
+
+To build the image yourself:
+```
+git clone https://github.com/Silicondust/HDHR-DVR-docker.git
+cd HDHR-DVR-docker
+docker build -t hdhrdvr-docker .
+```
+
+Released under the MIT License - see [LICENSE](LICENSE).

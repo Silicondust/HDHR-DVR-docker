@@ -18,20 +18,40 @@
   border-top: solid 1px #96D0F7;
   border-bottom: solid 1px #0C3459;
 }
+/* the name (HD box and HomeRun DVR Manager), with the versions under it */
 #logo {
-  height: 65px;
+  height: 80px;
   position: absolute;
   left: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 4px;
 }
 #logo a {
   text-decoration: none;
   color: white;
 }
 #logo h1 {
-  top: 5px;
+  margin: 0;
   font-size: 2.8em;
+  line-height: 1;
   text-shadow: 0 2px 2px #0E3E68;
-  bottom: 5px;
+}
+#logo .logo_title {
+  display: flex;
+  align-items: center;
+  gap: 0.2em;
+  white-space: nowrap;
+}
+/* the HD box, as tall as the text */
+#logo .logo_img {
+  height: 1em;
+  width: auto;
+  display: block;
+  border-radius: 0.12em;
+  box-shadow: 0 2px 2px #0E3E68;
 }
 #logo p {
   margin: 0px 0px 0px 0px;
@@ -1078,6 +1098,14 @@ textarea.server_param {
   background-color: #dbe4ef;
   padding: 5px 5px 0px 10px;
   box-shadow: 2px 2px 2px black;
+}
+/* read-only parameters (StorageID, config file location) - darker, so they
+ * don't look editable */
+textarea.server_param:disabled {
+  background-color: #b4c1d1;
+  color: #2a2a2a;
+  cursor: default;
+  resize: none;
 }
 #server_param_name {
   color: white;

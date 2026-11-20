@@ -14,9 +14,11 @@
 		$logList = new DVRUI_Engine_LogList($configFile->getRecordPath());
 		$logfile = $logList->getNewestLogFile();
 		if (file_exists($logfile)) {
+			// the log is empty for a moment when the engine has just started
 			$lines = file($logfile);
-			$linecount = count($lines);
-			$lastline = $lines[$linecount - 1];
+			if ($lines !== false && count($lines) > 0) {
+				$lastline = $lines[count($lines) - 1];
+			}
 		}
 		
 		$htmlstr = preg_replace('/\s+/', ' ', trim($statusmsg . ' | ' . $lastline));

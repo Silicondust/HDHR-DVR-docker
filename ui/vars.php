@@ -1,11 +1,11 @@
 <?php
 final class DVRUI_Vars 
 {
-	const DVRUI_version	="3.3.0";
-	const DVRUI_name    ="HDHR-DVR Manager";
+	const DVRUI_version	="3.4.0";
+	const DVRUI_name    ="HDHomeRun DVR Manager";
 	const DVRUI_author	="Rik Dunphy";
-	const DVRUI_email   ="rik.dunphy@gmail.com";
-	const DVRUI_git     ="https://github.com/Silicondust/dvr_install";
+	const DVRUI_email   ="rikd@silicondust.com";
+	const DVRUI_git     ="https://github.com/Silicondust/HDHR-DVR-docker";
 	const DVR_pkgPath   ="/HDHomeRunDVR/data";
 	const DVR_bin       ="hdhomerun_record";
 	const DVR_sh        ="";

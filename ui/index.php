@@ -93,7 +93,16 @@
 	$diagnosticsdata = file_get_contents('style/diagnostics.html');
 	$recordeddata = file_get_contents('style/recorded.html');
 
-	$topmenu = str_replace('[[pagetitle]]',$pageName,$topmenu);
+	// the header shows the HDHomeRun HD box in place of the HD of HDHomeRun - the
+	// box, then "HomeRun DVR Manager"
+	$pageLogo = htmlspecialchars($pageName);
+	if (strpos($pageName, 'HDHomeRun') === 0) {
+		$pageLogo = "<img class='logo_img' src='images/hdhomerun-hd.png' alt='HD'/>"
+			. "<span class='logo_name'>" . htmlspecialchars(substr($pageName, 2)) . "</span>";
+	}
+	$pageLogo = "<span class='logo_title'>" . $pageLogo . "</span>";
+	$topmenu = str_replace('[[pagelogo]]',$pageLogo,$topmenu);
+	$topmenu = str_replace('[[pagetitle]]',htmlspecialchars($pageName, ENT_QUOTES),$topmenu);
 	$topmenu = str_replace('[[UI-Version]]',$UIVersion,$topmenu);
 	$topmenu = str_replace('[[DVR-Version]]',$DVRVersion,$topmenu);
 
