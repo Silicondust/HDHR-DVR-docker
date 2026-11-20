@@ -1,3 +1,9 @@
+# Dockerfile
+#
+# Copyright (c) 2020 Rik Dunphy
+# Copyright (c) 2026 Silicondust USA Inc.
+# Released under the MIT License - see LICENSE
+
 FROM alpine:3.24.4
 WORKDIR /
 

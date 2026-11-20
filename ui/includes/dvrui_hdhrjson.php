@@ -1,18 +1,33 @@
 <?php
+/*
+ * ui/includes/dvrui_hdhrjson.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	require_once("vars.php");
 	require_once("includes/dvrui_common.php");
 	require_once("includes/dvrui_recordengine_config.php");
 	require_once("includes/dvrui_hdhrdiscover.php");
+	require_once("includes/dvrui_hdhrmdns.php");
+	require_once("includes/dvrui_settings.php");
 
 /*
  * HDHomeRun device discovery
  *
- * Follows the SiliconDust discovery model (https://info.hdhomerun.com/info/discovery_api):
- *  1. Local UDP broadcast discovery of tuners and record engines (native PHP
- *     implementation in dvrui_hdhrdiscover.php), then query each device's discover.json
- *  2. The record engine running in this container is queried directly on localhost
- *  3. Optional cloud discovery (api.hdhomerun.com) as a fallback to find
- *     devices that local broadcast did not reach
+ * Follows the SiliconDust discovery model (https://info.hdhomerun.com/info/discovery_api),
+ * in this order - a device is only added by the first method that finds it:
+ *  1. localhost  - the record engine running in this container, on the Port in dvr.conf
+ *  2. UDP IPv4   - broadcast discovery of tuners and record engines (native PHP
+ *                  implementation in dvrui_hdhrdiscover.php)
+ *  3. mDNS IPv4  - hdhomerun.local looked up over multicast DNS (dvrui_hdhrmdns.php)
+ *  4. UDP IPv6   - multicast discovery to ff02::176 / ff05::176
+ *  5. mDNS IPv6  - hdhomerun.local looked up over IPv6 multicast DNS
+ *  6. cloud      - api.hdhomerun.com, a fallback for devices the network did not reach
+ * Each device's discover.json is then read. mDNS, IPv6 and cloud discovery can each be
+ * turned off on the Settings page (defaults in vars.php: DVRUI_mdnsDiscover,
+ * DVRUI_ipv6Discover, DVRUI_cloudDiscover).
  * Results are de-duplicated by DeviceID (tuners) and StorageID (engines).
  */
 class DVRUI_HDHRjson {
@@ -39,49 +54,36 @@ class DVRUI_HDHRjson {
 	private $enginelist = array();
 	private $storageURL = '';
 	private $discoverLog = array();
+	private $offLogged = array();
 
 	public function __construct() {
-		$this->discover_local();
 		$this->discover_local_engine();
-		if (DVRUI_Vars::DVRUI_cloudDiscover) {
+		$this->discover_udp(false);
+		if ($this->enabled('DVRUI_mdnsDiscover')) {
+			$this->discover_mdns(false);
+		}
+		if ($this->enabled('DVRUI_ipv6Discover')) {
+			$this->discover_udp(true);
+			if ($this->enabled('DVRUI_mdnsDiscover')) {
+				$this->discover_mdns(true);
+			}
+		}
+		if ($this->enabled('DVRUI_cloudDiscover')) {
 			$this->discover_cloud();
 		}
 		error_log('Discovery complete: ' . count($this->hdhrlist) . ' tuner(s), '
 			. count($this->enginelist) . ' engine(s)');
 	}
 
-	/*
-	 * Local UDP broadcast discovery of tuners and record engines
-	 */
-	private function discover_local() {
-		$discover = new DVRUI_HDHRdiscover();
-		$devices = $discover->discover();
-		foreach ($discover->get_log() as $msg) {
-			$this->log($msg);
+	/* a discovery switch - from the Settings page, or its vars.php default */
+	private function enabled($name) {
+		$on = dvruiSetting($name);
+		if (!$on && !isset($this->offLogged[$name])) {
+			$this->offLogged[$name] = true;
+			$labels = array('DVRUI_mdnsDiscover' => 'mDNS', 'DVRUI_ipv6Discover' => 'IPv6', 'DVRUI_cloudDiscover' => 'Cloud');
+			$this->log((isset($labels[$name]) ? $labels[$name] : $name) . ' discovery is off (Settings) - skipped');
 		}
-
-		foreach ($devices as $dev) {
-			$ip = $dev['IP'];
-			$devID = $this->val($dev, $this->hdhrkey_devID, null);
-			$name = ($devID !== null) ? $devID : $this->val($dev, $this->hdhrkey_storageID, 'engine');
-			$this->log('Found ' . $name . ' at ' . $ip . ' types [' . implode(',', $dev['DeviceType']) . ']');
-
-			if (!array_key_exists($this->hdhrkey_baseURL, $dev)) {
-				// Legacy devices have no HTTP interface and can't be used by the DVR
-				$this->log('Skipping ' . $name . ' at ' . $ip . ' - no BaseURL (legacy device)');
-				continue;
-			}
-			$info = getJsonFromUrl(rtrim($dev[$this->hdhrkey_baseURL], '/') . '/discover.json');
-			if (!is_array($info)) {
-				$this->log('Skipping ' . $name . ' at ' . $ip . ' - discover.json not available');
-				continue;
-			}
-			// discover.json wins, the UDP reply fills in anything it is missing
-			unset($dev['IP'], $dev['DeviceType']);
-			$info = array_merge($dev, $info);
-			$info[$this->hdhrkey_localIP] = $ip;
-			$this->add_device($info, 'local', $devID);
-		}
+		return $on;
 	}
 
 	/*
@@ -98,7 +100,142 @@ class DVRUI_HDHRjson {
 			$this->log('Local record engine not responding on port ' . $port);
 			return;
 		}
-		$this->add_device($info, 'local', null);
+		$this->add_device($info, 'localhost', null);
+	}
+
+	/*
+	 * UDP discovery of tuners and record engines - IPv4 broadcast or IPv6 multicast
+	 */
+	private function discover_udp($ipv6) {
+		$source = $ipv6 ? 'UDP IPv6' : 'UDP IPv4';
+		$discover = new DVRUI_HDHRdiscover();
+		$devices = $ipv6 ? $discover->discover_ipv6() : $discover->discover_ipv4();
+		foreach ($discover->get_log() as $msg) {
+			$this->log($msg);
+		}
+
+		foreach ($devices as $dev) {
+			$ip = $this->scoped_ip($dev['IP'], $dev['Interface']);
+			$devID = $this->val($dev, $this->hdhrkey_devID, null);
+			$storageID = $this->val($dev, $this->hdhrkey_storageID, null);
+			$name = ($devID !== null) ? $devID : (($storageID !== null) ? $storageID : 'engine');
+			if ($this->already_found($devID, $storageID)) {
+				$this->log('Found ' . $name . ' at ' . $ip . ' (' . $source . ') - already found');
+				continue;
+			}
+			$this->log('Found ' . $name . ' at ' . $ip . ' (' . $source . ') types [' . implode(',', $dev['DeviceType']) . ']');
+
+			if (!array_key_exists($this->hdhrkey_baseURL, $dev)) {
+				// Legacy devices have no HTTP interface and can't be used by the DVR
+				$this->log('Skipping ' . $name . ' at ' . $ip . ' - no BaseURL (legacy device)');
+				continue;
+			}
+			$baseURL = $this->scoped_url($dev[$this->hdhrkey_baseURL], $dev['Interface']);
+			$info = getJsonFromUrl(rtrim($baseURL, '/') . '/discover.json');
+			if (!is_array($info)) {
+				$this->log('Skipping ' . $name . ' at ' . $ip . ' - discover.json not available');
+				continue;
+			}
+			// discover.json wins, the UDP reply fills in anything it is missing
+			unset($dev['IP'], $dev['Interface'], $dev['DeviceType']);
+			$info = array_merge($dev, $info);
+			$info[$this->hdhrkey_localIP] = $ip;
+			$this->add_device($this->scope_urls($info, $baseURL), $source, $devID);
+		}
+	}
+
+	/*
+	 * mDNS lookup of hdhomerun.local, then each address's discover.json
+	 */
+	private function discover_mdns($ipv6) {
+		$source = $ipv6 ? 'mDNS IPv6' : 'mDNS IPv4';
+		$mdns = new DVRUI_HDHRmdns();
+		$addrs = $ipv6 ? $mdns->lookup_ipv6() : $mdns->lookup_ipv4();
+		foreach ($mdns->get_log() as $msg) {
+			$this->log($msg);
+		}
+
+		foreach ($addrs as $addr) {
+			$ip = $this->scoped_ip($addr['IP'], $addr['Interface']);
+			if ($this->address_known($addr['IP'])) {
+				$this->log('Found ' . $ip . ' (' . $source . ') - already found');
+				continue;
+			}
+			$host = $ipv6 ? '[' . str_replace('%', '%25', $ip) . ']' : $ip;
+			$baseURL = 'http://' . $host;
+			$info = getJsonFromUrl($baseURL . '/discover.json');
+			if (!is_array($info)) {
+				$this->log('Skipping ' . $ip . ' (' . $source . ') - discover.json not available');
+				continue;
+			}
+			$this->log('Found ' . $this->val($info, $this->hdhrkey_devID, 'device') . ' at ' . $ip . ' (' . $source . ')');
+			$info[$this->hdhrkey_localIP] = $ip;
+			$this->add_device($this->scope_urls($info, $baseURL), $source, null);
+		}
+	}
+
+	/*
+	 * A device found by UDP is skipped if an earlier method already found it
+	 */
+	private function already_found($devID, $storageID) {
+		if ($storageID !== null) {
+			return $this->find_engine($storageID) >= 0;
+		}
+		return $devID !== null && $this->find_tuner($devID) >= 0;
+	}
+
+	/*
+	 * mDNS only gives an address - skip it if a device already found is at that address
+	 */
+	private function address_known($ip) {
+		$ip = strtolower($ip);
+		foreach (array_merge($this->hdhrlist, $this->enginelist) as $dev) {
+			$local = strtolower(preg_replace('/%.*$/', '', $this->val($dev, $this->hdhrkey_localIP, '')));
+			$host = strtolower(trim((string)parse_url($this->val($dev, $this->hdhrkey_baseURL, ''), PHP_URL_HOST), '[]'));
+			$host = preg_replace('/%.*$/', '', $host);
+			if ($ip === $local || $ip === $host) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/* link-local IPv6 addresses only work with their interface: fe80::1%eth0 */
+	private function scoped_ip($ip, $ifname) {
+		if ($ifname != '' && strpos($ip, '%') === false && DVRUI_HDHRdiscover::is_ipv6_linklocal($ip)) {
+			return $ip . '%' . $ifname;
+		}
+		return $ip;
+	}
+
+	/* the same for a URL - http://[fe80::1%25eth0]:80/ */
+	private function scoped_url($url, $ifname) {
+		if ($ifname == '') {
+			return $url;
+		}
+		return preg_replace_callback('#^(\w+://)\[([0-9a-fA-F:.]+)\]#', function ($m) use ($ifname) {
+			if (!DVRUI_HDHRdiscover::is_ipv6_linklocal($m[2])) {
+				return $m[0];
+			}
+			return $m[1] . '[' . $m[2] . '%25' . $ifname . ']';
+		}, $url);
+	}
+
+	/*
+	 * Add the interface to any link-local IPv6 URLs in discover.json (BaseURL,
+	 * LineupURL, StorageURL) - the interface is taken from the URL used to reach it
+	 */
+	private function scope_urls($info, $reachedURL) {
+		if (!preg_match('#\[[^\]]*%25([^\]]+)\]#', $reachedURL, $m)) {
+			return $info;
+		}
+		$ifname = rawurldecode($m[1]);
+		foreach (array($this->hdhrkey_baseURL, $this->hdhrkey_lineupURL, $this->hdhrkey_storageURL) as $key) {
+			if (isset($info[$key]) && is_string($info[$key])) {
+				$info[$key] = $this->scoped_url($info[$key], $ifname);
+			}
+		}
+		return $info;
 	}
 
 	/*

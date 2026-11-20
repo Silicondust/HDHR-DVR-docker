@@ -1,4 +1,10 @@
 #!/bin/sh
+# scripts/hdhomerun.sh
+#
+# Copyright (c) 2020 Rik Dunphy
+# Copyright (c) 2026 Silicondust USA Inc.
+# Released under the MIT License - see LICENSE
+
 ###########################
 # hdhomerun.sh
 # Shell Script to prepare the container data and execute the record engine

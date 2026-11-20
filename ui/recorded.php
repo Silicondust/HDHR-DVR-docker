@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/recorded.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	require_once("includes/dvrui_ajax.php");
 	require_once("vars.php");
 	require_once("statusmessage.php");
@@ -151,7 +158,7 @@
 		});
 
 		// trimmed so no whitespace between the inline-block cards adds to the gap
-		$entryTemplate = trim(file_get_contents('style/recorded_entry.html'));
+		$entryTemplate = trim(dvruiTemplate('recorded_entry.html'));
 		$groupCards = array();
 		$groupCounts = array();
 		foreach (array_keys(recordedGroups()) as $group) {

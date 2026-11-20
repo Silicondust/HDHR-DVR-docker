@@ -1,4 +1,10 @@
 #!/bin/sh
+# scripts/supervisord.sh
+#
+# Copyright (c) 2020 Rik Dunphy
+# Copyright (c) 2026 Silicondust USA Inc.
+# Released under the MIT License - see LICENSE
+
 # Simple wrapper for supervisord so we prep the container as needed
 
 DEFAULTS_DIR=/HDHomeRunDVR/defaults
@@ -308,6 +314,25 @@ update_ctl_group() {
     export DVRUI_CTL_GROUP
 }
 
+# The UI settings file (Settings page) - created if it's missing and owned by the
+# PHP user, so the UI can save it whoever owns /dvrdata
+update_ui_settings() {
+    DVRUI_SETTINGS=${CONF_DIR}/dvrui_settings.json
+    if [ ! -f "${DVRUI_SETTINGS}" ] ; then
+        echo "INFO: Creating the UI settings file ${DVRUI_SETTINGS}"
+        echo "{}" > ${DVRUI_SETTINGS}
+    fi
+    PHP_USER=$(${CMD_SED} -n -E 's/^[[:space:]]*user[[:space:]]*=[[:space:]]*([^[:space:];]+).*/\1/p' ${PHP_WWW_CONF} | head -n 1)
+    PHP_GROUP=$(${CMD_SED} -n -E 's/^[[:space:]]*group[[:space:]]*=[[:space:]]*([^[:space:];]+).*/\1/p' ${PHP_WWW_CONF} | head -n 1)
+    if [ -n "${PHP_USER}" ] && ${CMD_GETENT} passwd "${PHP_USER}" > /dev/null ; then
+        ${CMD_CHOWN} "${PHP_USER}" ${DVRUI_SETTINGS}
+        if [ -n "${PHP_GROUP}" ] && ${CMD_GETENT} group "${PHP_GROUP}" > /dev/null ; then
+            ${CMD_CHOWN} ":${PHP_GROUP}" ${DVRUI_SETTINGS}
+        fi
+    fi
+    chmod 664 ${DVRUI_SETTINGS}
+}
+
 # start the supervisord
 start_supervisord() {
     /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf
@@ -332,6 +357,7 @@ update_user
 if [ "${DVRUI_WEB_AUTOSTART}" = "true" ] ; then
     update_nginx_port
     update_php_tz
+    update_ui_settings
 else
     echo "INFO: UI disabled - DVRUI_PORT and DVRUI_TZ are not used"
 fi

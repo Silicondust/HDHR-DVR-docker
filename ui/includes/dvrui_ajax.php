@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/includes/dvrui_ajax.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	/* Ajax calls from the page (see dvruiCall in scripts/hdhomerundvr_ui.js).
 	 *
 	 * The page POSTs fn=<function>&args[]=... to index.php. The function must

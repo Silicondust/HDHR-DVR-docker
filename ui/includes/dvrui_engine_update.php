@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/includes/dvrui_engine_update.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	/* Record engine update - is a newer engine available from SiliconDust, is
 	 * anything recording, and restart the engine so it installs the newer one.
 	 *

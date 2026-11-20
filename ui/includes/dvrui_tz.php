@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/includes/dvrui_tz.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	require_once('vars.php');
 	
 	function DVRUI_setTZ() {

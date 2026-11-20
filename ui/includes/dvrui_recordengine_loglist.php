@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/includes/dvrui_recordengine_loglist.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 require_once("vars.php");
 
 class DVRUI_Engine_LogList {

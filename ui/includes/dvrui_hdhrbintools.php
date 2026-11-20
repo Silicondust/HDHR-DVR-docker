@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/includes/dvrui_hdhrbintools.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 require_once ("vars.php");
 require_once ("includes/dvrui_recordengine_config.php");
 

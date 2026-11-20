@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/logdownload.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	/* Download a record engine log file as text - the whole file, or with
 	 * types=Error,Status only the lines of those log types (the same type keys
 	 * as the log viewer's filter bar, 'Other' for lines without a type).

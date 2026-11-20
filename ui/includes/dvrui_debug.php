@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/includes/dvrui_debug.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	error_reporting(E_ALL & ~E_DEPRECATED);   // (E_STRICT is part of E_ALL since PHP 8)
 	require_once("vars.php");
 	if (function_exists('opcache_reset') && DVRUI_Vars::DVRUI_DEBUG) {

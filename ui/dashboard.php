@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/dashboard.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	require_once("includes/dvrui_ajax.php");
 	require_once("vars.php");
 	require_once("statusmessage.php");
@@ -14,7 +21,7 @@
 
 		//create output
 		$serverConfig = new DVRUI_Engine_Config();
-		$htmlStr  = file_get_contents('style/dashboard_page.html');
+		$htmlStr  = dvruiTemplate('dashboard_page.html');
 		$htmlStr = str_replace('<!-- dvrui_dashboard_server_ctrls -->',loadServerCtrlPane(),$htmlStr);
 		$htmlStr = str_replace('<!-- dvrui_dashboard_server_params -->',loadServerParamPane($serverConfig),$htmlStr);
 		$htmlStr = str_replace('<!-- dvrui_dashboard_hdhr -->',loadHDHRPane(),$htmlStr);
@@ -38,40 +45,40 @@
 
 
 	function loadServerCtrlPane() {
-		$htmlStr  = file_get_contents('style/dashboard_ctrls.html');
+		$htmlStr  = dvruiTemplate('dashboard_ctrls.html');
 		return $htmlStr;
 	}
 	
 	function loadServerParamPane($serverConfig) {
-		$htmlStr  = file_get_contents('style/dashboard_params.html');
+		$htmlStr  = dvruiTemplate('dashboard_params.html');
 		if ($serverConfig->configFileExists()) {
-			$serverParamEntry = file_get_contents('style/dashboard_ctrls_entry_ro.html');
+			$serverParamEntry = dvruiTemplate('dashboard_ctrls_entry_ro.html');
 			$serverParamEntry = str_replace('<!-- dvrui_param_name -->', 'Config File Location', $serverParamEntry);
 			$serverParamEntry = str_replace('<!-- dvrui_param_value -->', $serverConfig->getConfigFileName(), $serverParamEntry);
 			$htmlStr = str_replace('<!-- dvrui_config_file_name -->', $serverParamEntry, $htmlStr);
 
-			$serverParamEntry = file_get_contents('style/dashboard_ctrls_entry_wr.html');
+			$serverParamEntry = dvruiTemplate('dashboard_ctrls_entry_wr.html');
 			$serverParamEntry = str_replace('<!-- dvrui_param_name -->', 'RecordPath', $serverParamEntry);
 			$serverParamEntry = str_replace('<!-- dvrui_param_value -->', $serverConfig->getRecordPath(), $serverParamEntry);
 			$htmlStr = str_replace('<!-- dvrui_config_recordpath_value -->', $serverParamEntry, $htmlStr);
 
-			$serverParamEntry = file_get_contents('style/dashboard_ctrls_entry_wr.html');
+			$serverParamEntry = dvruiTemplate('dashboard_ctrls_entry_wr.html');
 			$serverParamEntry = str_replace('<!-- dvrui_param_name -->', 'RecordStreamsMax', $serverParamEntry);
 			$serverParamEntry = str_replace('<!-- dvrui_param_value -->', $serverConfig->getRecordStreamsMax(), $serverParamEntry);
 			$htmlStr = str_replace('<!-- dvrui_config_recordstreamsmax_value -->', $serverParamEntry, $htmlStr);
 
-			$serverParamEntry = file_get_contents('style/dashboard_ctrls_entry_wr.html');
+			$serverParamEntry = dvruiTemplate('dashboard_ctrls_entry_wr.html');
 			$serverParamEntry = str_replace('<!-- dvrui_param_name -->', 'Port', $serverParamEntry);
 			$serverParamEntry = str_replace('<!-- dvrui_param_value -->', $serverConfig->getServerPort(), $serverParamEntry);
 			$htmlStr = str_replace('<!-- dvrui_config_port_value -->', $serverParamEntry, $htmlStr);
 
 			// the engine sets the StorageID - shown, not edited
-			$serverParamEntry = file_get_contents('style/dashboard_ctrls_entry_ro.html');
+			$serverParamEntry = dvruiTemplate('dashboard_ctrls_entry_ro.html');
 			$serverParamEntry = str_replace('<!-- dvrui_param_name -->', 'StorageID', $serverParamEntry);
 			$serverParamEntry = str_replace('<!-- dvrui_param_value -->', $serverConfig->getStorageId(), $serverParamEntry);
 			$htmlStr = str_replace('<!-- dvrui_config_storage_value -->', $serverParamEntry, $htmlStr);
 
-			$serverParamEntry = file_get_contents('style/dashboard_ctrls_entry_wr.html');
+			$serverParamEntry = dvruiTemplate('dashboard_ctrls_entry_wr.html');
 			$serverParamEntry = str_replace('<!-- dvrui_param_name -->', 'BetaEngine', $serverParamEntry);
 			$serverParamEntry = str_replace('<!-- dvrui_param_value -->', $serverConfig->getBetaEngine(), $serverParamEntry);
 			$htmlStr = str_replace('<!-- dvrui_config_beta -->', $serverParamEntry, $htmlStr);
@@ -90,7 +97,7 @@
 		$devices =  $hdhr->device_count();
 		$hdhr_data = '';
 		for ($i=0; $i < $devices; $i++) {
-			$hdhrEntry = file_get_contents('style/hdhrlist_entry.html');
+			$hdhrEntry = dvruiTemplate('hdhrlist_entry.html');
 			$hdhr_device_data = "<a href=" . $hdhr->get_device_baseurl($i) . ">" . $hdhr->get_device_id($i) . "</a>";
 			$hdhr_lineup_data = "<a href=" . $hdhr->get_device_lineup($i) . ">" . $hdhr->get_device_channels($i) . " Channels</a>";
 			$hdhr_name_data = str_replace("HDHomeRun", "HDHomeRun <br>", $hdhr->get_device_modelname($i));
@@ -109,7 +116,7 @@
 		$myStorageID = $serverConfig->getStorageId();
 		$engines =  $hdhr->engine_count();
 		for ($i=0; $i < $engines; $i++) {
-			$hdhrEntry = file_get_contents('style/enginelist_entry.html');
+			$hdhrEntry = dvruiTemplate('enginelist_entry.html');
 			$isLocal = (strcasecmp($hdhr->get_engine_storageId($i), $myStorageID) == 0);
 			$hdhrEntry = str_replace('<!--hdhr_local_class-->', $isLocal ? ' hdhr_entry_local' : '', $hdhrEntry);
 			$hdhrEntry = str_replace('<!--hdhr_local_title-->', $isLocal ? " title='Local record engine (this container)'" : '', $hdhrEntry);
@@ -135,7 +142,7 @@
 	}
 	
 	function loadLogFilePane($serverConfig) {
-		$htmlStr =  file_get_contents('style/dashboard_logs.html');
+		$htmlStr =  dvruiTemplate('dashboard_logs.html');
 		$loglist = buildLogFileList($serverConfig->getRecordPath());
 		$htmlStr =  str_replace('<!-- dvrui_loglist -->', $loglist, $htmlStr);
 		return $htmlStr;
@@ -152,7 +159,7 @@
 			$logPathlist[0] = $logPath;
 		}
 		
-		$logListEntry = file_get_contents('style/loglist_entry.html');
+		$logListEntry = dvruiTemplate('loglist_entry.html');
 		$listStr = '<ul>';
 		foreach ($logPathlist as $path) {
 			if ($path != 'null') {
@@ -223,7 +230,7 @@
 
 		//create output
 		$logfile = new DVRUI_Engine_LogFile($filename);
-		$logEntry = file_get_contents('style/logfile_entry.html');
+		$logEntry = dvruiTemplate('logfile_entry.html');
 		$htmlStr = '';
 		$typeCounts = array();    // filter key => number of entries
 		$typeClasses = array();   // filter key => colour class
@@ -304,7 +311,7 @@
 		$serverConfig->writeConfigFile();
 	
 	
-		$htmlStr  = file_get_contents('style/dashboard_page.html');
+		$htmlStr  = dvruiTemplate('dashboard_page.html');
 		$htmlStr = str_replace('<!-- dvrui_dashboard_server_ctrls -->',loadServerCtrlPane(),$htmlStr);
 		$htmlStr = str_replace('<!-- dvrui_dashboard_server_params -->',loadServerParamPane($serverConfig),$htmlStr);
 		$htmlStr = str_replace('<!-- dvrui_dashboard_hdhr -->',loadHDHRPane(),$htmlStr);

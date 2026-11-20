@@ -19,14 +19,24 @@ thus run the container with the host network selected, i.e.
 ```
 
 ### Device Discovery
-The Management GUI discovers devices the way SiliconDust recommends:
-1. Tuners and record engines are found by local UDP broadcast (port 65001) using a native PHP
+The Management GUI discovers devices the way SiliconDust recommends, in this order - each device is
+added by the first method that finds it, and its `discover.json` is then read:
+1. **localhost** - the record engine in this container, on `http://127.0.0.1:<Port>/discover.json`.
+2. **UDP IPv4** - tuners and record engines are found by UDP broadcast (port 65001) using a native PHP
    implementation of the HDHomeRun discovery protocol (the same protocol SiliconDust's
-   [libhdhomerun](https://github.com/Silicondust/libhdhomerun) uses), then each device's
-   `discover.json` is read. Legacy devices without an HTTP interface are skipped.
-2. The record engine in this container is queried directly on `http://127.0.0.1:<Port>/discover.json`.
-3. The cloud discovery service (`https://api.hdhomerun.com/discover`) is used as a fallback to find any
-   devices the broadcast did not reach. Set `DVRUI_cloudDiscover` to `false` in `ui/vars.php` to disable it.
+   [libhdhomerun](https://github.com/Silicondust/libhdhomerun) uses). Legacy devices without an HTTP
+   interface are skipped.
+3. **mDNS IPv4** - every HDHomeRun answers for `hdhomerun.local`, so it is looked up with multicast DNS
+   (224.0.0.251), which also finds devices on another subnet when the network relays mDNS.
+4. **UDP IPv6** - the same discovery, multicast to `ff02::176` (link-local) and `ff05::176` (site-local)
+   on each IPv6 interface, as libhdhomerun does. Only when the container has IPv6.
+5. **mDNS IPv6** - `hdhomerun.local` looked up with multicast DNS over IPv6 (`ff02::fb`).
+6. **cloud** - the cloud discovery service (`https://api.hdhomerun.com/discover`), as a fallback to find
+   any devices the local network did not reach.
+
+mDNS (both steps), IPv6 (both steps) and cloud discovery can each be turned off on the Settings page (see
+[Settings](#settings)). The Diagnostics page shows what each step found, and which method found each device.
+The local steps need the container on the host network (`--network host`); for IPv6 the host network must have IPv6.
 
 In addition to the DVR engine, the container also has an embedded NGINX web server with PHP FPM configured to deliver a simple Management GUI.
 By default the Web server will run on Port 80. Use the DVRUI_PORT environment variable to move this
@@ -40,6 +50,20 @@ Use the DVRUI_ENABLE environment variable to choose how much of the UI runs:
 | full (default) | The whole UI - Dashboard, Recordings (with the series pages and their actions), Rules (the account's recording rules - edit their channels, seasons and padding, change their priority or delete them) and Diagnostics |
 | minimal | The Dashboard and Diagnostics only |
 | none | No UI at all - NGINX and PHP FPM are not started, the container just runs the record engine. DVRUI_PORT and DVRUI_TZ aren't needed (PUID/PGID still apply to the engine) |
+
+### Settings
+The cog button at the right of the menu (next to the Reload and Diagnostics buttons) opens the Settings page,
+in both the full and minimal UI. Each setting has a switch that saves as soon as it is changed, and takes
+effect on the next page or Reload:
+
+| Setting | Default | |
+| --------| ------- | ------- |
+| mDNS discovery | On | Look up `hdhomerun.local` with multicast DNS (IPv4, and IPv6 when IPv6 discovery is on) |
+| IPv6 discovery | On | Discover devices over IPv6 when the container has IPv6 |
+| Cloud discovery | On | Ask the SiliconDust cloud for devices local discovery did not reach |
+
+The settings are kept in `dvrui_settings.json` in /dvrdata, so they last through container restarts and updates.
+The defaults are in `ui/vars.php`.
 
 You can override the user ID and group ID used by the container processes by setting the PUID/PGID to match a user on your system.
 By default NGINX will run as a user 'nginx'' and PHP as 'nobody' while the DVR will run simply as root or mapped if you use the --user settings of docket.

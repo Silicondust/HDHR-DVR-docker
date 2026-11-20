@@ -1,3 +1,10 @@
+/*
+ * ui/style/style.css
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 #footer {
   clear: both;
   margin: 20px 0 20px 0;
@@ -53,7 +60,17 @@
   border-radius: 0.12em;
   box-shadow: 0 2px 2px #0E3E68;
 }
+/* bottom right of the logo space, level with the last version line */
+#logo_copyright {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  color: white;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
 #logo p {
+  color: white;
   margin: 0px 0px 0px 0px;
   padding: 0px 0px 0px 0px;
 }
@@ -120,21 +137,30 @@ img.aligntop {
   width: 100%;
   display: hidden;
 }
+/* the icons at the right of the menu: Reload, Diagnostics (bug), Settings (cog) */
+li.settings_page {
+  position: absolute;
+  right: 10px;
+}
 li.diagnostics_page {
   position: absolute;
-  right: 10;
+  right: 45px;
 }
-a.diagnostics_page {
+a.diagnostics_page,
+a.settings_page {
   text-color: #cccccc;
   padding: 5px 5px 5px 5px;
-  background-image: url("../images/gear.png");
+  background-image: url("../images/bug.svg");
   background-size: 18px;
   background-repeat: no-repeat;
   background-position: center center;
 }
+a.settings_page {
+  background-image: url("../images/gear.png");
+}
 li.reload_page {
   position: absolute;
-  right: 45px;
+  right: 80px;
 }
 a.reload_page {
   font-size: 18px;
@@ -1523,6 +1549,118 @@ html {
   flex: 1 1 auto;
   font-style: oblique;
 }
+/* Settings - title strip, then a group of switches per area */
+#settings_page {
+  color: #DDD;
+}
+#settings_bar {
+  padding: 4px 10px;
+  color: white;
+  background: #5577a0;
+}
+#settings_bar .settings_title {
+  font-style: oblique;
+}
+#settings_box {
+  max-width: 760px;
+  padding: 12px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* the group name sits above its shaded box of switches */
+.settings_group_title {
+  color: white;
+  font-size: 1em;
+  font-weight: bold;
+  text-shadow: none;
+  margin: 0 0 6px 2px;
+}
+.settings_group {
+  border: solid 1px #2c3d57;
+  border-radius: 4px;
+  padding: 2px 14px;
+  background: #1e2a3c;
+}
+.setting {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 8px 0;
+}
+.setting + .setting {
+  border-top: solid 1px #2c3d57;
+}
+.setting_label {
+  color: white;
+  cursor: pointer;
+}
+.setting_help {
+  margin-top: 2px;
+  color: #BBB;
+  font-size: 0.85em;
+}
+/* on/off switch - a checkbox drawn as a slider */
+.setting_switch {
+  flex: none;
+  position: relative;
+  width: 38px;
+  height: 20px;
+  margin-top: 1px;
+  cursor: pointer;
+}
+.setting_switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.setting_slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: #3a4a60;
+  transition: background 0.15s;
+  pointer-events: none;
+}
+.setting_slider::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #DDD;
+  transition: transform 0.15s;
+}
+.setting_switch input:checked + .setting_slider {
+  background: #3c9c5a;
+}
+.setting_switch input:checked + .setting_slider::before {
+  transform: translateX(18px);
+  background: white;
+}
+.setting_switch input:focus-visible + .setting_slider {
+  outline: 2px solid #96D0F7;
+  outline-offset: 2px;
+}
+.setting_switch input:disabled + .setting_slider {
+  opacity: 0.45;
+}
+.settings_note {
+  color: #BBB;
+  font-size: 0.85em;
+  font-style: italic;
+}
+.settings_error {
+  padding: 8px 10px;
+  color: #ff8a8a;
+  background: #172131;
+  border-radius: 4px;
+}
 #diagnostics_content:has(#diagnostics_box:empty) .logfile_download {
   opacity: 0.45;
   pointer-events: none;
@@ -1680,6 +1818,29 @@ html {
   display: flex;
   flex-direction: column;
 }
+/* series image under the title, with the channels, seasons and padding to its right
+ * (they go under the image when the dialog is too narrow) */
+.re_top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 14px;
+}
+.re_image {
+  flex: none;
+  width: 192px;
+  height: 108px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #172131;
+}
+.re_settings {
+  flex: 1 1 300px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 #re_form {
   flex: 1;
   min-height: 0;
@@ -1777,6 +1938,22 @@ html {
   padding: 3px 8px;
   border-bottom: solid 1px #1e2a3c;
   vertical-align: top;
+}
+/* column headings stay in view while the list scrolls */
+.re_upcoming_list th {
+  position: sticky;
+  top: 0;
+  padding: 4px 8px;
+  text-align: left;
+  font-weight: normal;
+  color: #BBB;
+  background: #22324a;
+  border-bottom: solid 1px #2c3d57;
+  white-space: nowrap;
+}
+.re_upcoming_list th.re_rec {
+  width: 1%;
+  text-align: center;
 }
 .re_upcoming_list td.re_when,
 .re_upcoming_list td.re_ch {

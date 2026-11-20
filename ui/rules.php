@@ -1,4 +1,11 @@
 <?php
+/*
+ * ui/rules.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 	require_once("includes/dvrui_ajax.php");
 	require_once("vars.php");
 	require_once("statusmessage.php");
@@ -332,8 +339,13 @@
 		$h = "<div class='modal_overlay' id='rule_editor' data-ruleid='" . htmlspecialchars(rulesText($rule, 'RecordingRuleID'), ENT_QUOTES) . "'"
 			. " onclick='if (event.target == this) closeRuleEditor()'>"
 			. "<div class='modal_box rule_editor' role='dialog' aria-modal='true' aria-labelledby='re_title'>"
-			. "<h3 class='modal_title' id='re_title'>Edit rule &middot; " . htmlspecialchars($title) . "</h3>"
-			. "<form id='re_form' onsubmit='saveRuleEditor(); return false;'>";
+			. "<h3 class='modal_title' id='re_title'>Editing Rule &ldquo;" . htmlspecialchars($title) . "&rdquo;</h3>"
+			. "<form id='re_form' onsubmit='saveRuleEditor(); return false;'>"
+			// the series image, with the settings to its right
+			. "<div class='re_top'><img class='re_image' alt='' src='"
+			. htmlspecialchars(rulesText($rule, 'ImageURL') != '' ? rulesText($rule, 'ImageURL') : './images/no-preview.png', ENT_QUOTES) . "'"
+			. " onerror=\"this.onerror=null;this.src='./images/no-preview.png';\"/>"
+			. "<div class='re_settings'>";
 
 		if ($oneTime) {
 			$h .= "<p class='re_note'>A one-time recording - only the padding can be changed.</p>";
@@ -387,24 +399,27 @@
 		$h .= "<fieldset class='re_section'><legend>Padding</legend><div class='re_padding'>"
 			. "<label>Start <select id='re_start'>" . rulesPaddingOptions(rulesText($rule, 'StartPadding'), 3600) . "</select> early</label>"
 			. "<label>End <select id='re_end'>" . rulesPaddingOptions(rulesText($rule, 'EndPadding'), 10800) . "</select> late</label>"
-			. "</div></fieldset>";
+			. "</div></fieldset>"
+			. "</div></div>";
 
 		// what's coming up
-		$h .= "<div class='re_upcoming'><div class='re_upcoming_title'>Coming up in the guide</div>";
+		$h .= "<div class='re_upcoming'><div class='re_upcoming_title'>Upcoming episodes</div>";
 		if (count($episodes)) {
-			$h .= "<div class='re_upcoming_list'><table>";
+			$h .= "<div class='re_upcoming_list'><table>"
+				. "<thead><tr><th>When</th><th>Channel</th><th>Episode</th><th class='re_rec'>Recording</th></tr></thead><tbody>";
 			foreach ($episodes as $episode) {
+				// no year - the guide only covers the next 14 days
 				$start = (int)rulesText($episode, 'StartTime');
 				$name = trim(rulesText($episode, 'EpisodeNumber') . ' ' . rulesText($episode, 'EpisodeTitle'));
 				$h .= "<tr data-channel='" . htmlspecialchars(rulesText($episode, 'ChannelNumber'), ENT_QUOTES) . "'>"
-					. "<td class='re_when'>" . htmlspecialchars($start > 0 ? date('D ' . dvruiDateFormat() . ' H:i', $start) : '') . "</td>"
+					. "<td class='re_when'>" . htmlspecialchars($start > 0 ? date('D ' . trim(str_replace('Y', '', dvruiDateFormat())) . ' H:i', $start) : '') . "</td>"
 					. "<td class='re_ch'>" . htmlspecialchars(trim(rulesText($episode, 'ChannelNumber') . ' ' . rulesText($episode, 'ChannelName'))) . "</td>"
 					. "<td class='re_ep'>" . htmlspecialchars($name != '' ? $name : rulesText($episode, 'Title')) . "</td>"
 					. "<td class='re_rec'>" . rulesRecordCell(rulesText($episode, 'RecordingRuleExt')) . "</td></tr>";
 			}
-			$h .= "</table></div>";
+			$h .= "</tbody></table></div>";
 		} else {
-			$h .= "<p class='re_none'>There are no episodes of this show coming up in the guide.</p>";
+			$h .= "<p class='re_none'>There are no upcoming episodes of this show in the guide.</p>";
 		}
 		$h .= "</div></form><div id='re_footer'>" . rulesEditorFooter('') . "</div></div></div>";
 		return $h;

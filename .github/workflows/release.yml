@@ -1,3 +1,9 @@
+# .github/workflows/release.yml
+#
+# Copyright (c) 2020 Rik Dunphy
+# Copyright (c) 2026 Silicondust USA Inc.
+# Released under the MIT License - see LICENSE
+
 # Builds the container image and publishes it when a GitHub release is published.
 #
 # The release tag must match the VERSION file (v3.3.1 or 3.3.1 for VERSION 3.3.1).

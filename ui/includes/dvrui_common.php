@@ -1,4 +1,26 @@
 <?php
+/*
+ * ui/includes/dvrui_common.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
+
+	/*
+	 * An HTML template from style/, without its header comment (file name and
+	 * copyright) - templates are repeated for every entry of a list, so the header
+	 * isn't sent to the browser
+	 */
+	function dvruiTemplate($name) {
+		static $cache = array();
+		if (!isset($cache[$name])) {
+			$html = (string)@file_get_contents('style/' . $name);
+			$cache[$name] = preg_replace('/^\s*<!--.*?Copyright.*?-->\r?\n?/s', '', $html, 1);
+		}
+		return $cache[$name];
+	}
+
 	function getJsonFromUrl($url) {
 		if (in_array('curl', get_loaded_extensions())){
 			$ch = curl_init();

@@ -1,8 +1,20 @@
 <?php
 /*
+ * ui/includes/dvrui_hdhrdiscover.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
+/*
  * Native PHP implementation of the HDHomeRun UDP discovery protocol
  * (the same protocol libhdhomerun / hdhomerun_config use), so no external
  * tool is needed. Requires the PHP sockets extension.
+ *
+ * IPv4: the request is broadcast on every local subnet (and to localhost).
+ * IPv6: the request is multicast, as libhdhomerun does, to
+ *   ff02::176 (link-local) on each interface with a link-local address and
+ *   ff05::176 (site-local) on each interface with a global or unique local address.
  *
  * Packet format (big endian):
  *   uint16 type | uint16 payload length | payload (TLVs) | uint32 CRC32 (little endian)
@@ -12,6 +24,9 @@ class DVRUI_HDHRdiscover {
 	const DISCOVER_UDP_PORT = 65001;
 	const TYPE_DISCOVER_REQ = 0x0002;
 	const TYPE_DISCOVER_RPY = 0x0003;
+
+	const IPV6_LINKLOCAL_MULTICAST = 'ff02::176';
+	const IPV6_SITELOCAL_MULTICAST = 'ff05::176';
 
 	const TAG_DEVICE_TYPE = 0x01;
 	const TAG_DEVICE_ID   = 0x02;
@@ -40,63 +55,191 @@ class DVRUI_HDHRdiscover {
 	 * Broadcast a discover request for tuners and record engines on every local
 	 * IPv4 interface (plus localhost for an engine on this host) and collect replies.
 	 * Returns an array of devices:
-	 *   array('IP', 'DeviceType' => array(...), 'DeviceID', 'TunerCount', 'BaseURL',
-	 *         'LineupURL', 'StorageURL', 'StorageID', 'DeviceAuth')
+	 *   array('IP', 'Interface', 'DeviceType' => array(...), 'DeviceID', 'TunerCount',
+	 *         'BaseURL', 'LineupURL', 'StorageURL', 'StorageID', 'DeviceAuth')
 	 */
-	public function discover() {
-		if (!function_exists('socket_create')) {
-			$this->log[] = 'PHP sockets extension not loaded - local discovery unavailable';
+	public function discover_ipv4() {
+		if (!$this->sockets_available()) {
 			return array();
 		}
-
-		$sock = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-		if ($sock === false) {
-			$this->log[] = 'Unable to create UDP socket: ' . socket_strerror(socket_last_error());
+		$sock = $this->create_socket(AF_INET, '0.0.0.0');
+		if ($sock === null) {
 			return array();
 		}
 		socket_set_option($sock, SOL_SOCKET, SO_BROADCAST, 1);
-		if (!@socket_bind($sock, '0.0.0.0', 0)) {
-			$this->log[] = 'Unable to bind UDP socket: ' . socket_strerror(socket_last_error($sock));
-			socket_close($sock);
+
+		$targets = array();
+		foreach ($this->get_broadcast_targets() as $ip) {
+			$targets[] = array($sock, $ip);
+		}
+		$this->log[] = 'IPv4: sending discover to ' . implode(', ', array_column($targets, 1));
+		$devices = $this->run(array(spl_object_id($sock) => array($sock, '')), $targets);
+		socket_close($sock);
+
+		$this->log[] = 'IPv4: discover found ' . count($devices) . ' device(s)';
+		return $devices;
+	}
+
+	/*
+	 * Multicast a discover request on every IPv6 interface. Each interface gets its
+	 * own socket so a reply is known to have come in on that interface - a link-local
+	 * address is only usable together with its interface (the scope).
+	 */
+	public function discover_ipv6() {
+		if (!$this->sockets_available()) {
+			return array();
+		}
+		if (!defined('AF_INET6') || !defined('IPV6_MULTICAST_IF')) {
+			$this->log[] = 'IPv6: not supported by PHP - skipped';
+			return array();
+		}
+		$ifs = self::ipv6_interfaces();
+		if (count($ifs) == 0) {
+			$this->log[] = 'IPv6: no IPv6 interfaces - skipped';
 			return array();
 		}
 
-		$targets = $this->get_broadcast_targets();
-		$this->log[] = 'Sending discover to ' . implode(', ', $targets);
-		$pkt = $this->build_request(array(self::DEVICE_TYPE_TUNER, self::DEVICE_TYPE_STORAGE));
+		$socks = array();
+		$targets = array();
+		$desc = array();
+		foreach ($ifs as $name => $kinds) {
+			$sock = $this->create_socket(AF_INET6, '::');
+			if ($sock === null) {
+				continue;
+			}
+			if (!@socket_set_option($sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, $name)) {
+				$this->log[] = 'IPv6: unable to use ' . $name . ' for multicast';
+				socket_close($sock);
+				continue;
+			}
+			$socks[spl_object_id($sock)] = array($sock, $name);
+			if ($kinds['linklocal']) {
+				$targets[] = array($sock, self::IPV6_LINKLOCAL_MULTICAST);
+				$desc[] = self::IPV6_LINKLOCAL_MULTICAST . '%' . $name;
+			}
+			if ($kinds['general']) {
+				$targets[] = array($sock, self::IPV6_SITELOCAL_MULTICAST);
+				$desc[] = self::IPV6_SITELOCAL_MULTICAST . '%' . $name;
+			}
+		}
+		if (count($targets) == 0) {
+			$this->log[] = 'IPv6: no usable interfaces - skipped';
+			return array();
+		}
+		$this->log[] = 'IPv6: sending discover to ' . implode(', ', $desc);
+		$devices = $this->run($socks, $targets);
+		foreach ($socks as $s) {
+			socket_close($s[0]);
+		}
 
+		$this->log[] = 'IPv6: discover found ' . count($devices) . ' device(s)';
+		return $devices;
+	}
+
+	/*
+	 * Interfaces (not loopback) with IPv6 addresses:
+	 *   name => array('linklocal' => bool, 'general' => bool)
+	 * general = a global or unique local (non link-local) address
+	 */
+	public static function ipv6_interfaces() {
+		$result = array();
+		if (!function_exists('net_get_interfaces')) {
+			return $result;
+		}
+		$ifs = net_get_interfaces();
+		if (!is_array($ifs)) {
+			return $result;
+		}
+		foreach ($ifs as $name => $if) {
+			if ((isset($if['up']) && !$if['up']) || empty($if['unicast'])) {
+				continue;
+			}
+			foreach ($if['unicast'] as $addr) {
+				if (empty($addr['address'])
+						|| !filter_var($addr['address'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)
+						|| $addr['address'] == '::1') {
+					continue;
+				}
+				if (!isset($result[$name])) {
+					$result[$name] = array('linklocal' => false, 'general' => false);
+				}
+				if (self::is_ipv6_linklocal($addr['address'])) {
+					$result[$name]['linklocal'] = true;
+				} else {
+					$result[$name]['general'] = true;
+				}
+			}
+		}
+		return $result;
+	}
+
+	/* fe80::/10 */
+	public static function is_ipv6_linklocal($ip) {
+		$bin = @inet_pton($ip);
+		return $bin !== false && strlen($bin) == 16
+			&& ord($bin[0]) == 0xFE && (ord($bin[1]) & 0xC0) == 0x80;
+	}
+
+	private function sockets_available() {
+		if (!function_exists('socket_create')) {
+			$this->log[] = 'PHP sockets extension not loaded - local discovery unavailable';
+			return false;
+		}
+		return true;
+	}
+
+	private function create_socket($family, $bindaddr) {
+		$sock = @socket_create($family, SOCK_DGRAM, SOL_UDP);
+		if ($sock === false) {
+			$this->log[] = 'Unable to create UDP socket: ' . socket_strerror(socket_last_error());
+			return null;
+		}
+		if (!@socket_bind($sock, $bindaddr, 0)) {
+			$this->log[] = 'Unable to bind UDP socket: ' . socket_strerror(socket_last_error($sock));
+			socket_close($sock);
+			return null;
+		}
+		return $sock;
+	}
+
+	/*
+	 * Send the request to each target (array(socket, address)) and collect the
+	 * replies on all the sockets (spl_object_id(socket) => array(socket, interface name))
+	 */
+	private function run($socks, $targets) {
+		$pkt = $this->build_request(array(self::DEVICE_TYPE_TUNER, self::DEVICE_TYPE_STORAGE));
 		$devices = array();
 		for ($attempt = 0; $attempt < self::DISCOVER_ATTEMPTS; $attempt++) {
-			foreach ($targets as $ip) {
-				@socket_sendto($sock, $pkt, strlen($pkt), 0, $ip, self::DISCOVER_UDP_PORT);
+			foreach ($targets as $t) {
+				@socket_sendto($t[0], $pkt, strlen($pkt), 0, $t[1], self::DISCOVER_UDP_PORT);
 			}
 
 			$deadline = microtime(true) + (self::DISCOVER_WAIT_MS / 1000);
 			while (($remaining = $deadline - microtime(true)) > 0) {
-				$read = array($sock);
+				$read = array_column($socks, 0);
 				$write = null;
 				$except = null;
 				$usec = (int)($remaining * 1000000);
 				if (@socket_select($read, $write, $except, intdiv($usec, 1000000), $usec % 1000000) < 1) {
 					break;
 				}
-				$buf = '';
-				$from = '';
-				$port = 0;
-				if (@socket_recvfrom($sock, $buf, 2048, 0, $from, $port) === false) {
-					continue;
+				foreach ($read as $sock) {
+					$buf = '';
+					$from = '';
+					$port = 0;
+					if (@socket_recvfrom($sock, $buf, 2048, 0, $from, $port) === false) {
+						continue;
+					}
+					$dev = $this->parse_reply($buf);
+					if ($dev === null) {
+						continue;
+					}
+					$dev['IP'] = $from;
+					$dev['Interface'] = $socks[spl_object_id($sock)][1];
+					$this->merge_device($devices, $dev);
 				}
-				$dev = $this->parse_reply($buf);
-				if ($dev === null) {
-					continue;
-				}
-				$dev['IP'] = $from;
-				$this->merge_device($devices, $dev);
 			}
 		}
-		socket_close($sock);
-
-		$this->log[] = 'Discover found ' . count($devices) . ' device(s)';
 		return array_values($devices);
 	}
 

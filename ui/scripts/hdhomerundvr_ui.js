@@ -1,13 +1,10 @@
-/******************************************************************************
- * @file hdhomerunedvrui.js
- * @description
- * @version 1.0
- * @author Rik Dunphy
+/*
+ * ui/scripts/hdhomerundvr_ui.js
  *
- * Copyright 2008 (c) Rik Dunphy
- * You are free to use this file in your own programs, but I do not accept
- * any liability for errors or problems arising from it's use. 
- *****************************************************************************/
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 
 
 /* Ajax - call an exported PHP function (see dvruiAjaxDispatch in
@@ -86,7 +83,7 @@ function dvruiCallFailed(fn, msg) {
 $.each(['getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
 	'openRecordedPage', 'openSeriesPage', 'seriesActionPage', 'openRulesPage',
 	'moveRulePage', 'deleteRulePage', 'openRuleEditor', 'saveRulePage',
-	'checkEngineUpdate', 'updateEngine', 'engineVersion'], function(i, fn) {
+	'checkEngineUpdate', 'updateEngine', 'engineVersion', 'openSettingsPage', 'saveSetting'], function(i, fn) {
 	window[fn] = function() {
 		return dvruiCall(fn, Array.prototype.slice.call(arguments));
 	};
@@ -126,6 +123,19 @@ function loadTab(tabname, force) {
 	if (tabname == 'diagnostics_page') {
 		openDiagnosticsPage();
 	}
+	if (tabname == 'settings_page') {
+		openSettingsPage();
+	}
+}
+
+/* Settings - a switch saves as soon as it is changed (the page comes back with
+ * what was saved, so a switch that couldn't be saved goes back) */
+function changeSetting(input)
+{
+	$('#settings_box input[data-setting]').prop('disabled', true);
+	saveSetting(input.getAttribute('data-setting'), input.checked ? '1' : '0').fail(function() {
+		openSettingsPage();
+	});
 }
 var rulesLoaded = false;
 

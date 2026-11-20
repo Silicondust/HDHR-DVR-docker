@@ -1,7 +1,15 @@
 <?php
+/*
+ * ui/index.php
+ *
+ * Copyright (c) 2020 Rik Dunphy
+ * Copyright (c) 2026 Silicondust USA Inc.
+ * Released under the MIT License - see LICENSE
+ */
 
 	require_once("vars.php");
 	require_once("includes/dvrui_debug.php");
+	require_once("includes/dvrui_common.php");
 
 	require_once("includes/dvrui_ajax.php");
 
@@ -10,13 +18,14 @@
 	require_once("dashboard.php");
 	require_once("includes/dvrui_engine_update.php");
 	require_once("diagnostics.php");
+	require_once("settings.php");
 	require_once("recorded.php");
 	require_once("series.php");
 	require_once("rules.php");
 
 	/* The PHP functions the page can call (see dvruiCall in hdhomerundvr_ui.js) */
 	$exported = array('getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
-		'checkEngineUpdate', 'updateEngine', 'engineVersion');
+		'checkEngineUpdate', 'updateEngine', 'engineVersion', 'openSettingsPage', 'saveSetting');
 	// The Recordings and series pages (and their actions) are only in the full UI -
 	// DVRUI_ENABLE=minimal is the Dashboard and Diagnostics. Functions that aren't
 	// exported can't be called, so they aren't just hidden.
@@ -44,17 +53,17 @@
 	// takes the series title (see openSeries). Rules follows it, so it comes after
 	// Recordings or the series tab, whichever is showing.
 	if ($fullUI) {
-		$pageTitles = array('Dashboard', 'Recordings', '', 'Rules', '.');
-		$pageNames = array('dashboard_page', 'recorded_page', 'series_page', 'rules_page', 'diagnostics_page');
+		$pageTitles = array('Dashboard', 'Recordings', '', 'Rules', '.', '.');
+		$pageNames = array('dashboard_page', 'recorded_page', 'series_page', 'rules_page', 'diagnostics_page', 'settings_page');
 	} else {
-		$pageTitles = array('Dashboard', '.');
-		$pageNames = array('dashboard_page', 'diagnostics_page');
+		$pageTitles = array('Dashboard', '.', '.');
+		$pageNames = array('dashboard_page', 'diagnostics_page', 'settings_page');
 	}
-	$menu_data = file_get_contents('style/pagemenu.html');
+	$menu_data = dvruiTemplate('pagemenu.html');
 	$menuEntries = '';
 	$firstPage = true;
 	for ($i=0; $i < count($pageNames); $i++) {
-		$menuEntry = str_replace('<!-- dvrui_menu_pagename-->',$pageNames[$i],file_get_contents('style/pagemenu_entry.html'));
+		$menuEntry = str_replace('<!-- dvrui_menu_pagename-->',$pageNames[$i],dvruiTemplate('pagemenu_entry.html'));
 		$menuEntry = str_replace('<!-- dvrui_menu_pagetitle-->',$pageTitles[$i],$menuEntry);
 		if ($firstPage) {
 			$menuEntry = str_replace('<!--dvrui_default_page_option-->',' id="defaultPage"',$menuEntry);
@@ -65,7 +74,7 @@
 		$menuEntries .= $menuEntry;
 	}
 	// Reload action (sits next to diagnostics) - refreshes the active page, doesn't change tabs
-	$menuAction = file_get_contents('style/pagemenu_action.html');
+	$menuAction = dvruiTemplate('pagemenu_action.html');
 	$menuAction = str_replace('<!-- dvrui_menu_actionname-->', 'reload_page', $menuAction);
 	$menuAction = str_replace('<!-- dvrui_menu_actiontip-->', 'Reload', $menuAction);
 	$menuAction = str_replace('<!-- dvrui_menu_actionfunc-->', 'reloadPage', $menuAction);
@@ -82,16 +91,17 @@
 
 	// --- include header ---
 	error_log( "Build Index Page - header" );
-	$header = file_get_contents('style/header.html');
+	$header = dvruiTemplate('header.html');
 	$pagecontent = str_replace('[[pagetitle]]',$pageName,$header);
 
 	// --- Build Body ---
 	error_log( "Build Index Page - body" );
-	$indexPage = file_get_contents('style/index_page.html');
-	$topmenu = file_get_contents('style/topmenu.html');
-	$dashboarddata = file_get_contents('style/dashboard.html');
-	$diagnosticsdata = file_get_contents('style/diagnostics.html');
-	$recordeddata = file_get_contents('style/recorded.html');
+	$indexPage = dvruiTemplate('index_page.html');
+	$topmenu = dvruiTemplate('topmenu.html');
+	$dashboarddata = dvruiTemplate('dashboard.html');
+	$diagnosticsdata = dvruiTemplate('diagnostics.html');
+	$settingsdata = dvruiTemplate('settings.html');
+	$recordeddata = dvruiTemplate('recorded.html');
 
 	// the header shows the HDHomeRun HD box in place of the HD of HDHomeRun - the
 	// box, then "HomeRun DVR Manager"
@@ -110,6 +120,7 @@
 	$indexPage = str_replace('<!-- dvrui_pagemenu -->',$menu_data,$indexPage);
 	$indexPage = str_replace('<!-- dvrui_dashboard -->',$dashboarddata,$indexPage);
 	$indexPage = str_replace('<!-- dvrui_diagnostics -->',$diagnosticsdata,$indexPage);
+	$indexPage = str_replace('<!-- dvrui_settings -->',$settingsdata,$indexPage);
 	$indexPage = str_replace('<!-- dvrui_recorded -->',$recordeddata,$indexPage);
 
 	// -- Attach the Index to the Page
@@ -118,7 +129,7 @@
 
 	// --- include footer ---
 	error_log( "Build Index Page - footer" );
-	$footer = file_get_contents('style/footer.html');
+	$footer = dvruiTemplate('footer.html');
 	$footer = str_replace('<!--dvr-statusmsg-->',$statusmsg,$footer);
 	$pagecontent .= $footer;
 
