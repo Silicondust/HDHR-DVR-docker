@@ -54,9 +54,11 @@
 	// Recordings or the series tab, whichever is showing.
 	if ($fullUI) {
 		$pageTitles = array('Dashboard', 'Recordings', '', 'Rules', '.', '.');
+		$pageTips = array('', '', '', '', 'Diagnostics', 'Settings');
 		$pageNames = array('dashboard_page', 'recorded_page', 'series_page', 'rules_page', 'diagnostics_page', 'settings_page');
 	} else {
 		$pageTitles = array('Dashboard', '.', '.');
+		$pageTips = array('', 'Diagnostics', 'Settings');
 		$pageNames = array('dashboard_page', 'diagnostics_page', 'settings_page');
 	}
 	$menu_data = dvruiTemplate('pagemenu.html');
@@ -65,6 +67,8 @@
 	for ($i=0; $i < count($pageNames); $i++) {
 		$menuEntry = str_replace('<!-- dvrui_menu_pagename-->',$pageNames[$i],dvruiTemplate('pagemenu_entry.html'));
 		$menuEntry = str_replace('<!-- dvrui_menu_pagetitle-->',$pageTitles[$i],$menuEntry);
+		// the icon buttons (Diagnostics, Settings) have no text, so they get a tooltip
+		$menuEntry = str_replace('<!--dvrui_menu_pagetip-->', ($pageTips[$i] != '') ? ' title="' . $pageTips[$i] . '"' : '', $menuEntry);
 		if ($firstPage) {
 			$menuEntry = str_replace('<!--dvrui_default_page_option-->',' id="defaultPage"',$menuEntry);
 			$firstPage = false;
