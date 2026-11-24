@@ -1,0 +1,13 @@
+# Line endings: LF everywhere, on every platform - the files run in a Linux
+# container (CRLF breaks the shell scripts) and Windows checkouts stay LF too
+* text=auto eol=lf
+
+# Binary files - never converted
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.zip  binary
+*.tgz  binary
+*.gz   binary
