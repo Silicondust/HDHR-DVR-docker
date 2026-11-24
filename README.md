@@ -3,7 +3,7 @@ Docker Wrapper for SiliconDust's HDHomeRun DVR Record Engine with UI for DVR Man
 
 Source: https://github.com/Silicondust/HDHR-DVR-docker (see [Source and License](#source-and-license))
 
-Image: `demonrik/hdhrdvr-docker` on Docker Hub - moving to `ghcr.io/silicondust/hdhrdvr-docker` (see [Images](#images))
+Image: `ghcr.io/silicondust/hdhrdvr-docker` (also on Docker Hub as `demonrik/hdhrdvr-docker` for now - see [Images](#images))
 
 Image based on Alpine Linux https://alpinelinux.org/
 The image uses Alpine 3.24 with PHP 8.5, and NGINX.
@@ -112,7 +112,7 @@ docker run -d --name dvr \
   -e DVRUI_ENABLE=full \
   -v /path/to/hdhomerun/tempdata:/dvrdata \
   -v /path/to/hdhomerun/recordings:/dvrrec \
-  demonrik/hdhrdvr-docker
+  ghcr.io/silicondust/hdhrdvr-docker
 ```
 
 ### Minimal Example (record engine only)
@@ -125,20 +125,20 @@ docker run -d --name dvr \
   -e DVRUI_ENABLE=none \
   -v /path/to/hdhomerun/tempdata:/dvrdata \
   -v /path/to/hdhomerun/recordings:/dvrrec \
-  demonrik/hdhrdvr-docker
+  ghcr.io/silicondust/hdhrdvr-docker
 ```
 
 ## Images
-The image is published on Docker Hub for amd64, arm64 and arm/v7 (32-bit, e.g. older Raspberry Pi), tagged with the version and `latest`:
+The image is published on the GitHub Container Registry for amd64, arm64 and arm/v7 (32-bit, e.g. older Raspberry Pi), tagged with the version and `latest`:
 ```
-docker pull demonrik/hdhrdvr-docker:latest
+docker pull ghcr.io/silicondust/hdhrdvr-docker:latest
 ```
 
-### Moving to the GitHub Container Registry
-Now that the project is maintained by SiliconDust, our intention is to release the image through the GitHub Container Registry as `ghcr.io/silicondust/hdhrdvr-docker`.
-While we work through the logistics of that, releases continue to be published on Docker Hub as `demonrik/hdhrdvr-docker` - keep using that for now. This README will be updated when images are available on ghcr.io, and releases will continue on Docker Hub for a while after that.
+### Moving from Docker Hub
+Now that the project is maintained by SiliconDust, the image is released through the GitHub Container Registry as `ghcr.io/silicondust/hdhrdvr-docker`, starting with 3.5.0.
+Releases are still published on Docker Hub as `demonrik/hdhrdvr-docker` for a while, so existing containers keep updating - but please move to ghcr.io.
 
-When you do move, only the image name changes: keep the same volumes and environment variables, and the container carries on with the same config, engine and recordings. For example:
+To move, only the image name changes: keep the same volumes and environment variables, and the container carries on with the same config, engine and recordings. For example:
 ```
 docker pull ghcr.io/silicondust/hdhrdvr-docker:latest
 docker stop dvr && docker rm dvr
