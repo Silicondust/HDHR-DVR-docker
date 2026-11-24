@@ -12,9 +12,9 @@
 #   docker.io/demonrik/hdhrdvr-docker     (while the DOCKERHUB_USERNAME and
 #                                          DOCKERHUB_TOKEN repository secrets are set -
 #                                          remove them to stop publishing there)
-#   ghcr.io/silicondust/hdhrdvr-docker    (when PUBLISH_GHCR below is 'true' - uses the
-#                                          workflow's GITHUB_TOKEN; off until the
-#                                          organization's package settings are confirmed)
+#   ghcr.io/silicondust/hdhrdvr-docker    (while PUBLISH_GHCR below is 'true' - uses the
+#                                          workflow's GITHUB_TOKEN; a new package starts
+#                                          private, so make it public after the first push)
 name: Release image
 
 on:
@@ -27,7 +27,7 @@ permissions:
 
 env:
   # 'true' to publish to ghcr.io as well - the intended home of the image
-  PUBLISH_GHCR: 'false'
+  PUBLISH_GHCR: 'true'
   GHCR_IMAGE: ghcr.io/silicondust/hdhrdvr-docker
   DOCKERHUB_IMAGE: docker.io/demonrik/hdhrdvr-docker
   PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
