@@ -186,23 +186,25 @@ function diagnosticsText(all)
 	return text.replace(/\s/g, '') == '' ? '' : text;
 }
 
-/* Copy the text shown in the pane to the clipboard. navigator.clipboard only works
- * on https or localhost - the UI is usually opened over http on the LAN, so
- * otherwise it copies through a hidden textarea. */
-function copyDiagnostics()
+/* Copy text to the clipboard, and show on the copy button (.copy_overlay) whether
+ * it worked. navigator.clipboard only works on https or localhost - the UI is
+ * usually opened over http on the LAN, so otherwise it copies through a hidden
+ * textarea. */
+function copyToClipboard(text, btn)
 {
-	var text = diagnosticsText(false);
-	if (text == '') {
-		return;
+	if (btn.copyTimer) {
+		clearTimeout(btn.copyTimer);
+	} else {
+		btn.copyTitle = btn.title;   // put back once the result has been shown
 	}
-	var btn = document.getElementById('diagnostics_copy');
 	var done = function(ok) {
 		$(btn).removeClass('copied copy_failed').addClass(ok ? 'copied' : 'copy_failed');
 		btn.title = ok ? 'Copied' : 'Copy failed - select the text and copy it';
 		clearTimeout(btn.copyTimer);
 		btn.copyTimer = setTimeout(function() {
 			$(btn).removeClass('copied copy_failed');
-			btn.title = 'Copy the text shown to the clipboard';
+			btn.title = btn.copyTitle;
+			btn.copyTimer = null;
 		}, 1500);
 	};
 	var fallback = function() {
@@ -227,6 +229,15 @@ function copyDiagnostics()
 		navigator.clipboard.writeText(text).then(function() { done(true); }, fallback);
 	} else {
 		fallback();
+	}
+}
+
+/* Diagnostics - copy the text shown in the pane (one section, or all) */
+function copyDiagnostics()
+{
+	var text = diagnosticsText(false);
+	if (text != '') {
+		copyToClipboard(text, document.getElementById('diagnostics_copy'));
 	}
 }
 
@@ -1010,6 +1021,43 @@ function filterLogTypes()
 		btn.title = filtered ? 'Download the log entries shown (the types switched on)' : 'Download the log file';
 		btn.querySelector('.logfile_download_label').textContent = filtered ? 'Download filtered' : 'Download';
 		btn.disabled = (checks.length > 0 && shown == 0);
+	}
+	var copy = document.getElementById('logfile_copy');
+	if (copy) {
+		var title = (shown < checks.length) ? 'Copy the log entries shown (the types switched on) to the clipboard'
+			: 'Copy the log entries shown to the clipboard';
+		if (copy.copyTimer) {
+			copy.copyTitle = title;   // showing Copied - put this back afterwards
+		} else {
+			copy.title = title;
+		}
+	}
+}
+
+/* Copy the log entries shown (the types switched on in the filter bar) to the
+ * clipboard - one line per entry, as in the log file */
+function copyLogFile()
+{
+	var lines = document.querySelectorAll('#logfile_box .logline');
+	var text = [];
+	for (var i = 0; i < lines.length; i++) {
+		if (lines[i].style.display == 'none') {
+			continue;
+		}
+		var parts = [];
+		var spans = lines[i].getElementsByTagName('span');
+		for (var j = 0; j < spans.length; j++) {
+			var part = spans[j].textContent.trim();
+			if (part != '') {
+				parts.push(part);
+			}
+		}
+		if (parts.length > 0) {
+			text.push(parts.join(' '));
+		}
+	}
+	if (text.length > 0) {
+		copyToClipboard(text.join('\n'), document.getElementById('logfile_copy'));
 	}
 }
 

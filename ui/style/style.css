@@ -790,9 +790,15 @@ a.focus {
   display: flex;            /* filter bar on top, the entries fill the rest */
   flex-direction: column;
 }
-#logfile_box {
+/* the entries, with the copy button over their top right (it stays put while they scroll) */
+#logfile_pane {
   flex: 1;
   min-height: 0;
+  position: relative;
+}
+#logfile_box {
+  height: 100%;
+  box-sizing: border-box;
   width: 100%;
   overflow-y: auto;
   overflow-x: auto;
@@ -800,7 +806,11 @@ a.focus {
   border-left: 2px #5577a0 solid;
 }
 #logfile_box .logline {
-  padding: 0 3px;
+  padding: 0 44px 0 3px;   /* clear of the copy button */
+}
+/* no copy button until a log file is open */
+#logfile_pane:not(:has(.logline)) .copy_overlay {
+  display: none;
 }
 #logfile_header {
   background: #5577a0;
@@ -1666,7 +1676,7 @@ html {
 }
 /* copy button over the top right of the pane (clear of its scrollbar) - stays put
  * while the text scrolls */
-#diagnostics_copy {
+.copy_overlay {
   position: absolute;
   top: 6px;
   right: 22px;
@@ -1682,7 +1692,7 @@ html {
   border-radius: 4px;
   cursor: pointer;
 }
-#diagnostics_copy svg {
+.copy_overlay svg {
   width: 16px;
   height: 16px;
   fill: none;
@@ -1691,28 +1701,28 @@ html {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-#diagnostics_copy:hover,
-#diagnostics_copy:focus-visible {
+.copy_overlay:hover,
+.copy_overlay:focus-visible {
   color: white;
   background: #2c3d57;
   border-color: white;
 }
-#diagnostics_copy .copied_icon,
-#diagnostics_copy.copied .copy_icon {
+.copy_overlay .copied_icon,
+.copy_overlay.copied .copy_icon {
   display: none;
 }
-#diagnostics_copy.copied .copied_icon {
+.copy_overlay.copied .copied_icon {
   display: block;
 }
-#diagnostics_copy.copied {
+.copy_overlay.copied {
   color: #7fd89a;
   border-color: #3c9c5a;
 }
-#diagnostics_copy.copy_failed {
+.copy_overlay.copy_failed {
   color: #ff8a8a;
   border-color: #ff8a8a;
 }
-#diagnostics_content:has(#diagnostics_box:empty) #diagnostics_copy {
+#diagnostics_content:has(#diagnostics_box:empty) .copy_overlay {
   display: none;
 }
 /* Settings - title strip, then a group of switches per area */
