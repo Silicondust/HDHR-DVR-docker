@@ -26,6 +26,26 @@ DVRConf=dvr.conf
 DVRBin=hdhomerun_record
 DVR_PFX="DVRMgr: "
 
+# This script's messages also go to a small log the UI shows on the Diagnostics
+# page (the container output, docker logs, can't be read from the UI)
+DVRMgrLog=/tmp/dvrmgr.log
+
+log_msg()
+{
+	echo ${DVR_PFX} "$@"
+	echo "$(date '+%Y%m%d-%H:%M:%S') ${DVR_PFX}$*" >> ${DVRMgrLog} 2>/dev/null
+}
+
+# keep the log short - the last 200 lines, from earlier starts
+start_log()
+{
+	if [ -f ${DVRMgrLog} ] ; then
+		tail -n 200 ${DVRMgrLog} > ${DVRMgrLog}.tmp 2>/dev/null && mv -f ${DVRMgrLog}.tmp ${DVRMgrLog}
+	fi
+	touch ${DVRMgrLog}
+	chmod 644 ${DVRMgrLog}   # readable by the UI
+}
+
 ###########################
 # Creates the initial config file for the engine 8in /HDHomeRunDVR/data
 # Sets Following defaults
@@ -36,7 +56,7 @@ DVR_PFX="DVRMgr: "
 #
 create_initial_config()
 {
-	echo ${DVR_PFX} "** Creating Initial Config File"
+	log_msg "** Creating Initial Config File"
 	touch  ${DVRData}/${DVRConf}
 	echo "RecordPath=${DVRRec}" >> ${DVRData}/${DVRConf}
 	echo "Port=${DefaultPort}" >> ${DVRData}/${DVRConf}
@@ -51,15 +71,15 @@ create_initial_config()
 #
 validate_config_file()
 {
-	echo ${DVR_PFX} "** Validating the Config File is available and set up correctly"
+	log_msg "** Validating the Config File is available and set up correctly"
 	if [[ -e ${DVRData}/${DVRConf} ]] ; then
-		echo ${DVR_PFX} "Config File exists and is writable - is record path and port correct"
+		log_msg "Config File exists and is writable - is record path and port correct"
 		.  ${DVRData}/${DVRConf}
 		# TODO: Validate RecordPath
 		# TODO: Validate Port
 	else
 		# config file is missing
-		echo ${DVR_PFX} "Config is missing - creating initial version"
+		log_msg "Config is missing - creating initial version"
 		create_initial_config
 		.  ${DVRData}/${DVRConf}
 	fi
@@ -113,65 +133,65 @@ download_engine()
 
 update_engine()
 {
-	echo ${DVR_PFX} "** Installing the HDHomeRunDVR Record Engine"
+	log_msg "** Installing the HDHomeRunDVR Record Engine"
 	curEngineVer=`engine_version ${DVRData}/${DVRBin}`
 	if [ -z "$curEngineVer" ] ; then
 		curEngineVer=0
 	fi
 	curKey=`version_key $curEngineVer`
-	echo ${DVR_PFX} "** Current Engine Version is ${curEngineVer}"
+	log_msg "** Current Engine Version is ${curEngineVer}"
 
 	bestFile=""
 	bestVer=""
 	bestKey=0
 
-	echo ${DVR_PFX} "Downloading latest Stable release"
+	log_msg "Downloading latest Stable release"
 	if download_engine ${DownloadURL} ${DVRData}/${DVRBin}_rel ; then
 		stableEngineVer=`engine_version ${DVRData}/${DVRBin}_rel`
 		stableKey=`version_key $stableEngineVer`
-		echo ${DVR_PFX} "Got Engine [$stableEngineVer]"
+		log_msg "Got Engine [$stableEngineVer]"
 		if [ $stableKey -gt 0 ] ; then
 			bestFile=${DVRData}/${DVRBin}_rel
 			bestVer=$stableEngineVer
 			bestKey=$stableKey
 		fi
 	else
-		echo ${DVR_PFX} "ERROR in downloading latest Stable DVR binary"
+		log_msg "ERROR in downloading latest Stable DVR binary"
 	fi
 
 	if [ "$BetaEngine" = "1" ]; then
-		echo ${DVR_PFX} "Downloading latest Beta release"
+		log_msg "Downloading latest Beta release"
 		if download_engine ${BetaURL} ${DVRData}/${DVRBin}_beta ; then
 			betaEngineVer=`engine_version ${DVRData}/${DVRBin}_beta`
 			betaKey=`version_key $betaEngineVer`
-			echo ${DVR_PFX} "Got Engine [$betaEngineVer]"
+			log_msg "Got Engine [$betaEngineVer]"
 			if [ $betaKey -gt $bestKey ] ; then
 				bestFile=${DVRData}/${DVRBin}_beta
 				bestVer=$betaEngineVer
 				bestKey=$betaKey
 			fi
 		else
-			echo ${DVR_PFX} "ERROR in downloading latest Beta DVR binary"
+			log_msg "ERROR in downloading latest Beta DVR binary"
 		fi
 	fi
 
 	if [ -z "$bestFile" ] ; then
-		echo ${DVR_PFX} "ERROR have no downloaded engines - leaving the existing binary [$curEngineVer] alone!"
+		log_msg "ERROR have no downloaded engines - leaving the existing binary [$curEngineVer] alone!"
 	elif [ $bestKey -gt $curKey ] ; then
-		echo ${DVR_PFX} "Downloaded engine [$bestVer] is newer than [$curEngineVer] - updating..."
+		log_msg "Downloaded engine [$bestVer] is newer than [$curEngineVer] - updating..."
 		rm -f ${DVRData}/${DVRBin}
 		mv $bestFile ${DVRData}/${DVRBin}
 	else
-		echo ${DVR_PFX} "Downloaded engine [$bestVer] is not newer than [$curEngineVer] - not updating"
+		log_msg "Downloaded engine [$bestVer] is not newer than [$curEngineVer] - not updating"
 	fi
 	rm -f ${DVRData}/${DVRBin}_beta ${DVRData}/${DVRBin}_rel
 	if [ -f ${DVRData}/${DVRBin} ] ; then
 		# readable and runnable by all - the UI (web user) asks it for its version
 		chmod 755 ${DVRData}/${DVRBin}
 		EngineVer=`engine_version ${DVRData}/${DVRBin}`
-		echo ${DVR_PFX} "Engine is ... " ${EngineVer}
+		log_msg "Engine is ... " ${EngineVer}
 	else
-		echo ${DVR_PFX} "ERROR no record engine is installed"
+		log_msg "ERROR no record engine is installed"
 	fi
 }
 
@@ -180,42 +200,52 @@ update_engine()
 #
 patch_permissions()
 {
-	echo ${DVR_PFX} "** Checking for PUID"
+	log_msg "** Checking for PUID"
 	/usr/bin/getent passwd ${PUID} > /dev/null
     if [ $? -eq 0 ] ; then
-		echo ${DVR_PFX} "** PUID user exists - adjusting permissions to dvrdata & dvrrec"
+		log_msg "** PUID user exists - adjusting permissions to dvrdata & dvrrec"
 		chown -R dvr:dvr /dvrdata /dvrrec
 	else
-		echo ${DVR_PFX} "** Something went wrong - PUID provided, but no user created. using default"
+		log_msg "** Something went wrong - PUID provided, but no user created. using default"
 	fi
 }
 
 ###########################
 # Start the engine in foreground, redirect stderr and stdout to the logfile
+# The engine file is a shell script that unpacks the engine to /tmp and runs it
+# from there, so it's run through sh - it then only has to be readable, which
+# works when /dvrdata is mounted noexec (common on NAS shares) or is a network
+# share that ignores the chmod (exit status 126 / Permission denied otherwise)
 #
 start_engine()
 {
-	echo ${DVR_PFX} "** Starting the DVR Engine"
+	log_msg "** Starting the DVR Engine"
     if [ -n "${PUID}" ] ; then   # PGID is only used along with PUID
 		patch_permissions
 		/usr/bin/getent passwd ${PUID} > /dev/null
 	    if [ $? -eq 0 ] ; then
-			echo ${DVR_PFX} "** Executing DVR engine with PUID info..."
-			su -c "${DVRData}/${DVRBin} foreground --conf ${DVRData}/${DVRConf}" dvr
+			log_msg "** Executing DVR engine with PUID info..."
+			su -c "/bin/sh ${DVRData}/${DVRBin} foreground --conf ${DVRData}/${DVRConf}" dvr
 		else
-			echo ${DVR_PFX} "** Something went wrong - PUID provided, but no user created. using default"
-			${DVRData}/${DVRBin} foreground --conf ${DVRData}/${DVRConf}
+			log_msg "** Something went wrong - PUID provided, but no user created. using default"
+			/bin/sh ${DVRData}/${DVRBin} foreground --conf ${DVRData}/${DVRConf}
 		fi
 	else
-		${DVRData}/${DVRBin} foreground --conf ${DVRData}/${DVRConf}
+		log_msg "** Executing DVR engine as root..."
+		/bin/sh ${DVRData}/${DVRBin} foreground --conf ${DVRData}/${DVRConf}
 	fi
+	# the engine runs until it's stopped - its exit status says why it stopped
+	# (126 = it couldn't be run: Permission denied, 127 = not found)
+	log_msg "** DVR engine exited with status $?"
 }
 
 ###########################
 # Main loop
 #
+start_log
 echo "**********************"
 echo "hdhomerun.sh"
+log_msg "** hdhomerun.sh starting (PUID=[${PUID}] PGID=[${PGID}])"
 validate_config_file
 update_engine
 start_engine

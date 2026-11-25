@@ -23,6 +23,7 @@
 		//get data - one block per section, matching the sidebar in style/diagnostics.html
 		$htmlStr .= diagSection('system', getSystemDiag());
 		$htmlStr .= diagSection('config', getConfigDiag());
+		$htmlStr .= diagSection('container', getContainerDiag());
 		$htmlStr .= diagSection('connectivity', getConnectivityDiag());
 
   	$hdhr = new DVRUI_HDHRjson();
@@ -92,6 +93,166 @@
 		return $htmlStr;
   }
   
+  /* The container - the local record engine (is it running, as whom, its file and
+   * startup log), the users, and the volumes (mounts, owners, free space).
+   * Raw values, as read. */
+  function getContainerDiag() {
+  	$engineFile = DVRUI_Vars::DVR_pkgPath . '/' . DVRUI_Vars::DVR_bin;
+  	$users = diagReadIdFile('/etc/passwd');
+  	$groups = diagReadIdFile('/etc/group');
+
+  	$htmlStr = "---------- LOCAL RECORD ENGINE --------------------------------------------------<br/>";
+  	$ctl = defined('DVRUI_SUPERVISORCTL') ? DVRUI_SUPERVISORCTL : '/usr/bin/supervisorctl -c /etc/supervisor.d/supervisord.conf';
+  	$status = shell_exec($ctl . ' status dvr 2>&1');
+  	$htmlStr .= 'supervisorctl status dvr = ' . htmlspecialchars(trim((string)$status)) . "<br/>";
+  	$procs = diagEngineProcesses();
+  	if (count($procs) == 0) {
+  		$htmlStr .= 'engine process = none<br/>';
+  	}
+  	foreach ($procs as $p) {
+  		$htmlStr .= 'engine process = pid ' . $p['pid'] . ' uid ' . htmlspecialchars($p['uid'])
+  			. ' (' . htmlspecialchars(diagIdName($users, $p['uid'])) . ') ' . htmlspecialchars($p['cmd']) . "<br/>";
+  	}
+
+  	$htmlStr .= "---------- ENGINE FILE ----------------------------------------------------------<br/>";
+  	$htmlStr .= diagPathInfo('engine file', $engineFile, $users, $groups);
+
+  	$htmlStr .= "---------- ENGINE STARTUP LOG (last 50 lines of /tmp/dvrmgr.log) ---------------<br/>";
+  	$log = @file('/tmp/dvrmgr.log', FILE_IGNORE_NEW_LINES);
+  	if ($log === false) {
+  		$htmlStr .= 'not available<br/>';
+  	} else {
+  		foreach (array_slice($log, -50) as $line) {
+  			$htmlStr .= htmlspecialchars($line) . "<br/>";
+  		}
+  	}
+
+  	$htmlStr .= "---------- USERS ----------------------------------------------------------------<br/>";
+  	$ids = diagProcessIds('/proc/self/status');
+  	$htmlStr .= 'UI (php) uid = ' . htmlspecialchars($ids['uid']) . ' (' . htmlspecialchars(diagIdName($users, $ids['uid'])) . ')'
+  		. ' gid = ' . htmlspecialchars($ids['gid']) . ' (' . htmlspecialchars(diagIdName($groups, $ids['gid'])) . ')<br/>';
+  	$dvrUid = array_search('dvr', $users, true);
+  	if ($dvrUid === false) {
+  		$htmlStr .= 'dvr (PUID) user = none<br/>';
+  	} else {
+  		$line = diagIdLine('/etc/passwd', 'dvr');
+  		$htmlStr .= 'dvr (PUID) user = ' . htmlspecialchars($line) . "<br/>";
+  	}
+
+  	$htmlStr .= "---------- VOLUMES --------------------------------------------------------------<br/>";
+  	$mounts = diagReadMounts();
+  	foreach (array('/dvrdata', '/dvrrec', '/tmp') as $path) {
+  		$htmlStr .= diagPathInfo($path, $path, $users, $groups);
+  		$real = @realpath($path);
+  		$mount = diagMountFor($mounts, $real !== false ? $real : $path);
+  		$htmlStr .= $path . ' mount = ' . htmlspecialchars($mount) . "<br/>";
+  		$free = @disk_free_space($path);
+  		$total = @disk_total_space($path);
+  		$htmlStr .= $path . ' free bytes = ' . ($free === false ? 'unknown' : sprintf('%.0f', $free))
+  			. ' of ' . ($total === false ? 'unknown' : sprintf('%.0f', $total)) . "<br/>";
+  	}
+  	return $htmlStr;
+  }
+
+  // mode, owner, size, mtime and access (for the UI's user) of a file or directory
+  function diagPathInfo($label, $path, $users, $groups) {
+  	clearstatcache();
+  	$st = @stat($path);
+  	if ($st === false) {
+  		return htmlspecialchars($label) . ' = ' . htmlspecialchars($path) . ' not found<br/>';
+  	}
+  	$htmlStr = htmlspecialchars($label) . ' = ' . htmlspecialchars($path);
+  	if (is_link($path)) {
+  		$htmlStr .= ' -> ' . htmlspecialchars((string)@readlink($path));
+  	}
+  	$htmlStr .= '<br/>';
+  	$htmlStr .= htmlspecialchars($label) . ' mode = ' . sprintf('%o', $st['mode'] & 07777)
+  		. ' owner = ' . $st['uid'] . ':' . $st['gid']
+  		. ' (' . htmlspecialchars(diagIdName($users, $st['uid'])) . ':' . htmlspecialchars(diagIdName($groups, $st['gid'])) . ')'
+  		. ' size = ' . $st['size'] . ' mtime = ' . $st['mtime'] . '<br/>';
+  	$htmlStr .= htmlspecialchars($label) . ' UI access = '
+  		. (is_readable($path) ? 'r' : '-') . (is_writable($path) ? 'w' : '-') . (is_executable($path) ? 'x' : '-') . '<br/>';
+  	return $htmlStr;
+  }
+
+  // id => name from /etc/passwd or /etc/group
+  function diagReadIdFile($file) {
+  	$ids = array();
+  	foreach ((array)@file($file, FILE_IGNORE_NEW_LINES) as $line) {
+  		$f = explode(':', $line);
+  		if (count($f) >= 3) {
+  			$ids[$f[2]] = $f[0];
+  		}
+  	}
+  	return $ids;
+  }
+
+  function diagIdName($ids, $id) {
+  	return isset($ids[$id]) ? $ids[$id] : '?';
+  }
+
+  // the line for a name in /etc/passwd or /etc/group
+  function diagIdLine($file, $name) {
+  	foreach ((array)@file($file, FILE_IGNORE_NEW_LINES) as $line) {
+  		if (strpos($line, $name . ':') === 0) {
+  			return $line;
+  		}
+  	}
+  	return '';
+  }
+
+  // real uid and gid from a /proc/<pid>/status file
+  function diagProcessIds($statusFile) {
+  	$ids = array('uid' => '?', 'gid' => '?');
+  	foreach ((array)@file($statusFile, FILE_IGNORE_NEW_LINES) as $line) {
+  		if (preg_match('/^(Uid|Gid):\s+(\d+)/', $line, $m)) {
+  			$ids[strtolower($m[1])] = $m[2];
+  		}
+  	}
+  	return $ids;
+  }
+
+  // the running engine programs (hdhomerun_record_<arch>, unpacked to /tmp)
+  function diagEngineProcesses() {
+  	$procs = array();
+  	foreach ((array)@glob('/proc/[0-9]*', GLOB_ONLYDIR) as $dir) {
+  		$cmd = @file_get_contents($dir . '/cmdline');
+  		if ($cmd === false || $cmd === '') {
+  			continue;
+  		}
+  		$cmd = trim(str_replace("\0", ' ', $cmd));
+  		if (preg_match('#^\S*hdhomerun_record_\w+\s#', $cmd . ' ')) {
+  			$ids = diagProcessIds($dir . '/status');
+  			$procs[] = array('pid' => basename($dir), 'uid' => $ids['uid'], 'cmd' => $cmd);
+  		}
+  	}
+  	return $procs;
+  }
+
+  // mount point => the /proc/mounts line
+  function diagReadMounts() {
+  	$mounts = array();
+  	foreach ((array)@file('/proc/mounts', FILE_IGNORE_NEW_LINES) as $line) {
+  		$f = explode(' ', $line);
+  		if (count($f) >= 4) {
+  			$mounts[$f[1]] = $line;   // a later mount on the same point hides the earlier one
+  		}
+  	}
+  	return $mounts;
+  }
+
+  // the /proc/mounts line for the mount a path is on (the longest mount point that contains it)
+  function diagMountFor($mounts, $path) {
+  	$best = '';
+  	foreach ($mounts as $point => $line) {
+  		if (($path == $point || $point == '/' || strpos($path, rtrim($point, '/') . '/') === 0)
+  			&& strlen($point) > strlen($best)) {
+  			$best = $point;
+  		}
+  	}
+  	return $best == '' ? 'unknown' : $mounts[$best];
+  }
+
   function getConnectivityDiag() {
   	$htmlStr = '';
   	$myhdhrurl = DVRUI_Vars::DVRUI_apiurl . 'discover';
