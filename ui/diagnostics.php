@@ -20,19 +20,22 @@
 		//create output
 		$htmlStr = "";
 		
-		//get data
-		$htmlStr .= getServerDiag();
-		$htmlStr .= getConnectivityDiag();
+		//get data - one block per section, matching the sidebar in style/diagnostics.html
+		$htmlStr .= diagSection('system', getSystemDiag());
+		$htmlStr .= diagSection('config', getConfigDiag());
+		$htmlStr .= diagSection('connectivity', getConnectivityDiag());
 
   	$hdhr = new DVRUI_HDHRjson();
 		$serverConfig = new DVRUI_Engine_Config();
 		$hdhr->set_my_engine($serverConfig->getStorageId());
 
-		$htmlStr .= getHDHRDiag($hdhr);
-		$htmlStr .= getAccountDiag($hdhr);
-		$htmlStr .= getSeriesDiag($hdhr);
-		$htmlStr .= getRecordingsDiag($hdhr);
-		
+		$htmlStr .= diagSection('discovery', getDiscoveryDiag($hdhr));
+		$htmlStr .= diagSection('tuners', getTunersDiag($hdhr));
+		$htmlStr .= diagSection('engines', getEnginesDiag($hdhr));
+		$htmlStr .= diagSection('account', getAccountDiag($hdhr));
+		$htmlStr .= diagSection('series', getSeriesDiag($hdhr));
+		$htmlStr .= diagSection('recordings', getRecordingsDiag($hdhr));
+
 		$result = ob_get_contents();
 		ob_end_clean();
 
@@ -47,10 +50,14 @@
 		else
 			$tab->setHtml("statusMessage", $statusmsg);
 		return $tab->getString();
-  }	
-  	
-  function getServerDiag() {
-		$serverConfig = new DVRUI_Engine_Config();
+  }
+
+  // A section of the page - the sidebar shows one section, or all of them
+  function diagSection($id, $htmlStr) {
+  	return '<div class="diag_section" data-section="' . $id . '">' . $htmlStr . '</div>';
+  }
+
+  function getSystemDiag() {
   	$htmlStr = "---------- OS and ENV VARIABLES --------------------------------------------------<br/>";
   	$htmlStr .= 'Operating System = ' . php_uname() . "<br/>";
   	$htmlStr .= 'HTTP_HOST = ' . getenv('HTTP_HOST') . "<br/>";
@@ -71,7 +78,12 @@
   	$htmlStr .= "---------- PERMISSIONS ----------------------------------------------------------<br/>";
   	$htmlStr .= 'style = ' . substr(sprintf('%o', fileperms('style')), -4) . "<br/>";
   	$htmlStr .= 'style/style.css = ' . substr(sprintf('%o', fileperms('style/style.css')), -4) . "<br/>";
-  	$htmlStr .= "---------- Config File ----------------------------------------------------------<br/>";
+		return $htmlStr;
+  }
+
+  function getConfigDiag() {
+		$serverConfig = new DVRUI_Engine_Config();
+  	$htmlStr = "---------- Config File ----------------------------------------------------------<br/>";
   	$htmlStr .= 'Location = ' . $serverConfig->getConfigFileName() . "<br/>";
   	$htmlStr .= 'RecordPath = ' . $serverConfig->getRecordPath() . "<br/>";
   	$htmlStr .= 'RecordStreamsMax = ' . $serverConfig->getRecordStreamsMax() . "<br/>";
@@ -118,14 +130,17 @@
   	return $htmlStr;
   }
 
-  function getHDHRDiag($hdhr) {
-  	$devices =  $hdhr->device_count();
-  	$hdhr_data = '';
+  function getDiscoveryDiag($hdhr) {
   	$htmlStr =  "---------- HDHR DISCOVERY -------------------------------------------------------<br/>";
   	foreach ($hdhr->get_discover_log() as $msg) {
   		$htmlStr .= htmlspecialchars($msg) . "<br/>";
   	}
-  	$htmlStr .=  "---------- HDHR TUNERS-----------------------------------------------------------<br/>";
+		return $htmlStr;
+  }
+
+  function getTunersDiag($hdhr) {
+  	$devices =  $hdhr->device_count();
+  	$htmlStr =  "---------- HDHR TUNERS-----------------------------------------------------------<br/>";
   	for ($i=0; $i < $devices; $i++) {
   		$htmlStr .=  'tuner(' . $i . ') id: ' . $hdhr->get_device_id($i) . "<br/>";
   		$htmlStr .=  'tuner(' . $i . ') found by: ' . $hdhr->get_device_source($i) . "<br/>";
@@ -135,8 +150,11 @@
   		$htmlStr .=  'tuner(' . $i . ') baseurl: ' . $hdhr->get_device_baseurl($i) . "<br/>";
   		$htmlStr .=  'tuner(' . $i . ') auth: ' . $hdhr->get_device_auth($i) . "<br/>";
   	}
-  	
-  	$htmlStr .=  "---------- HDHR DVR ENGINES------------------------------------------------------<br/>";
+		return $htmlStr;
+  }
+
+  function getEnginesDiag($hdhr) {
+  	$htmlStr =  "---------- HDHR DVR ENGINES------------------------------------------------------<br/>";
   	$engines = $hdhr->engine_count();
   	for ($i=0; $i < $engines; $i++) {
   		$htmlStr .=  'dvr(' . $i . ') name: ' . $hdhr->get_engine_modelname($i) . "<br/>";

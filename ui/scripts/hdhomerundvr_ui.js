@@ -139,16 +139,106 @@ function changeSetting(input)
 }
 var rulesLoaded = false;
 
-/* Diagnostics - save the text shown on the page to hdhrdvr-diagnostics-<date-time>.log
- * (what is on screen, so the checks aren't run again for the file) */
-function downloadDiagnostics()
+/* Diagnostics - the sidebar shows one section in the pane, or all of them.
+ * CSS hides the other sections from #diagnostics_main's data-show, so the choice
+ * stays when the page is reloaded. */
+function showDiagSection(section)
 {
-	var box = document.getElementById('diagnostics_box');
-	var text = box ? (box.innerText || box.textContent || '') : '';
-	text = text.replace(/ /g, ' ').replace(/\r?\n/g, '\r\n').replace(/\s+$/, '') + '\r\n';
-	if (text.replace(/\s/g, '') == '') {
+	var main = document.getElementById('diagnostics_main');
+	if (!main) {
 		return;
 	}
+	main.setAttribute('data-show', section);
+	var name = '';
+	$('#diagnostics_nav .diag_nav').each(function() {
+		var on = this.getAttribute('data-section') == section;
+		$(this).toggleClass('active', on);
+		this.setAttribute('aria-pressed', on ? 'true' : 'false');
+		if (on && section != 'all') {
+			name = this.getAttribute('aria-label');
+		}
+	});
+	$('#diagnostics_section_name').text(name ? ' - ' + name : '');
+	var box = document.getElementById('diagnostics_box');
+	if (box) {
+		box.scrollTop = 0;
+	}
+}
+
+/* The diagnostics text as the page shows it - every section when all is true,
+ * otherwise the section shown ('' when there's nothing) */
+function diagnosticsText(all)
+{
+	var main = document.getElementById('diagnostics_main');
+	var box = document.getElementById('diagnostics_box');
+	if (!main || !box) {
+		return '';
+	}
+	var shown = main.getAttribute('data-show');
+	if (all) {
+		main.setAttribute('data-show', 'all');   // innerText leaves out hidden sections
+	}
+	var text = box.innerText || box.textContent || '';
+	if (all) {
+		main.setAttribute('data-show', shown);
+	}
+	text = text.replace(/ /g, ' ').replace(/\s+$/, '');
+	return text.replace(/\s/g, '') == '' ? '' : text;
+}
+
+/* Copy the text shown in the pane to the clipboard. navigator.clipboard only works
+ * on https or localhost - the UI is usually opened over http on the LAN, so
+ * otherwise it copies through a hidden textarea. */
+function copyDiagnostics()
+{
+	var text = diagnosticsText(false);
+	if (text == '') {
+		return;
+	}
+	var btn = document.getElementById('diagnostics_copy');
+	var done = function(ok) {
+		$(btn).removeClass('copied copy_failed').addClass(ok ? 'copied' : 'copy_failed');
+		btn.title = ok ? 'Copied' : 'Copy failed - select the text and copy it';
+		clearTimeout(btn.copyTimer);
+		btn.copyTimer = setTimeout(function() {
+			$(btn).removeClass('copied copy_failed');
+			btn.title = 'Copy the text shown to the clipboard';
+		}, 1500);
+	};
+	var fallback = function() {
+		var ta = document.createElement('textarea');
+		ta.value = text;
+		ta.setAttribute('readonly', '');
+		ta.style.position = 'fixed';
+		ta.style.top = '0';
+		ta.style.left = '-9999px';
+		document.body.appendChild(ta);
+		ta.select();
+		var ok = false;
+		try {
+			ok = document.execCommand('copy');
+		} catch (e) {
+			ok = false;
+		}
+		document.body.removeChild(ta);
+		done(ok);
+	};
+	if (navigator.clipboard && window.isSecureContext) {
+		navigator.clipboard.writeText(text).then(function() { done(true); }, fallback);
+	} else {
+		fallback();
+	}
+}
+
+/* Diagnostics - save the text of every section to hdhrdvr-diagnostics-<date-time>.log,
+ * whichever section is shown (what is on the page, so the checks aren't run again) */
+function downloadDiagnostics()
+{
+	var text = diagnosticsText(true);
+	if (text == '') {
+		return;
+	}
+	text = text.replace(/\r?\n/g, '\r\n') + '\r\n';
 	var d = new Date();
 	var pad = function(n) { return (n < 10 ? '0' : '') + n; };
 	var name = 'hdhrdvr-diagnostics-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate())

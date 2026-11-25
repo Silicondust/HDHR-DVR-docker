@@ -1549,6 +1549,172 @@ html {
   flex: 1 1 auto;
   font-style: oblique;
 }
+/* Diagnostics - title strip at the top, then the section icons down the left and
+ * the pane on the right; only the pane scrolls */
+#page > #diagnostics_page {
+  overflow: hidden;
+}
+#diagnostics_content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+#diagnostics_bar {
+  flex: none;
+}
+#diagnostics_main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+#diagnostics_nav {
+  flex: none;
+  width: 86px;
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  overflow-y: auto;
+  background: #1e2a3c;
+  border-right: 1px solid #2c3d57;
+}
+.diag_nav {
+  flex: none;
+  width: 76px;
+  height: 64px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;   /* icon, with its name below */
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #BBB;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.diag_nav svg {
+  width: 36px;
+  height: 36px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.diag_nav_label {
+  font: 11px Arial, sans-serif;
+  line-height: 13px;
+  white-space: nowrap;
+}
+.diag_nav:hover,
+.diag_nav:focus-visible {
+  color: white;
+  background: #2c3d57;
+}
+.diag_nav:focus-visible {
+  outline: 2px solid #96D0F7;
+  outline-offset: 1px;
+}
+.diag_nav.active {
+  color: white;
+  background: #5577a0;
+  border-color: #7d9cc2;
+}
+/* ALL is text, at the end of the list below a divider */
+.diag_nav_all {
+  margin-top: 4px;
+  position: relative;
+  font: bold 20px Arial, sans-serif;
+  letter-spacing: 0.5px;
+}
+.diag_nav_all::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 8px;
+  right: 8px;
+  border-top: 1px solid #2c3d57;
+}
+#diagnostics_pane {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+#diagnostics_box {
+  height: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 4px 44px 4px 8px;   /* text wraps clear of the copy button */
+}
+/* one section, or all of them */
+#diagnostics_main:not([data-show="all"]) .diag_section {
+  display: none;
+}
+#diagnostics_main[data-show="system"] .diag_section[data-section="system"],
+#diagnostics_main[data-show="config"] .diag_section[data-section="config"],
+#diagnostics_main[data-show="connectivity"] .diag_section[data-section="connectivity"],
+#diagnostics_main[data-show="discovery"] .diag_section[data-section="discovery"],
+#diagnostics_main[data-show="tuners"] .diag_section[data-section="tuners"],
+#diagnostics_main[data-show="engines"] .diag_section[data-section="engines"],
+#diagnostics_main[data-show="account"] .diag_section[data-section="account"],
+#diagnostics_main[data-show="series"] .diag_section[data-section="series"],
+#diagnostics_main[data-show="recordings"] .diag_section[data-section="recordings"] {
+  display: block;
+}
+/* copy button over the top right of the pane (clear of its scrollbar) - stays put
+ * while the text scrolls */
+#diagnostics_copy {
+  position: absolute;
+  top: 6px;
+  right: 22px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #DDD;
+  background: rgba(30, 42, 60, 0.85);
+  border: 1px solid #2c3d57;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#diagnostics_copy svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#diagnostics_copy:hover,
+#diagnostics_copy:focus-visible {
+  color: white;
+  background: #2c3d57;
+  border-color: white;
+}
+#diagnostics_copy .copied_icon,
+#diagnostics_copy.copied .copy_icon {
+  display: none;
+}
+#diagnostics_copy.copied .copied_icon {
+  display: block;
+}
+#diagnostics_copy.copied {
+  color: #7fd89a;
+  border-color: #3c9c5a;
+}
+#diagnostics_copy.copy_failed {
+  color: #ff8a8a;
+  border-color: #ff8a8a;
+}
+#diagnostics_content:has(#diagnostics_box:empty) #diagnostics_copy {
+  display: none;
+}
 /* Settings - title strip, then a group of switches per area */
 #settings_page {
   color: #DDD;
