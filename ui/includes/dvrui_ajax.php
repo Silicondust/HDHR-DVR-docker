@@ -15,9 +15,13 @@
 	 * is JSON: {"ok":true,"html":{id:html,...},"data":{...}} or
 	 * {"ok":false,"error":"..."}. */
 
+	/* The status bar shows only the record engine's status - every reply brings it
+	 * up to date (dvr_status). What the UI has to say about the request (saved,
+	 * deleted, unable to ...) goes in messages, which the page shows as toasts. */
 	class DVRUI_AjaxResponse {
 		private $html = array();
 		private $data = array();
+		private $messages = array();
 
 		/* Replace the contents of element $id with $html */
 		public function setHtml($id, $html) {
@@ -29,14 +33,44 @@
 			$this->data[(string)$key] = $value;
 		}
 
+		/* A message for the user (plain text) - $kind is ok, error or info,
+		 * or '' to tell from the text (see dvruiMessageKind) */
+		public function message($text, $kind = '') {
+			$text = trim(preg_replace('/\s+/', ' ', (string)$text));
+			if ($text !== '') {
+				$this->messages[] = array('text' => dvruiAjaxUtf8($text),
+					'kind' => ($kind != '') ? $kind : dvruiMessageKind($text));
+			}
+		}
+
+		/* Anything the request printed (ob_start ... ob_get_contents - PHP warnings
+		 * and the like) - shown as an error message */
+		public function output($printed) {
+			if ($printed !== null && $printed !== false && trim((string)$printed) !== '') {
+				$this->message(html_entity_decode(strip_tags((string)$printed), ENT_QUOTES), 'error');
+			}
+		}
+
 		public function getString() {
+			if (!isset($this->html['dvr_status']) && function_exists('dvruiStatusHtml')) {
+				$this->html['dvr_status'] = dvruiAjaxUtf8(dvruiStatusHtml());
+			}
 			$reply = array('ok' => true, 'html' => (object)$this->html);
 			if (count($this->data) > 0) {
 				$reply['data'] = $this->data;
 			}
+			if (count($this->messages) > 0) {
+				$reply['messages'] = $this->messages;
+			}
 			return json_encode($reply,
 				JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 		}
+	}
+
+	/* error for a message that says something failed, otherwise ok */
+	function dvruiMessageKind($text) {
+		return preg_match('/^(unable|could not|can\'t|cannot|that |no hdhomerun|nothing selected|unknown)|\b(failed|not found|not valid|error)\b|but silicondust kept/i',
+			(string)$text) ? 'error' : 'ok';
 	}
 
 	/* Text that isn't valid UTF-8 (log lines, file names) is taken as Latin-1 */

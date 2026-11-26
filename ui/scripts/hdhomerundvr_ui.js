@@ -66,6 +66,10 @@ function dvruiCall(fn, args) {
 				el.innerHTML = html;
 			}
 		});
+		// what the UI has to say about it - toasts (the status bar is the engine's)
+		$.each(reply.messages || [], function(i, m) {
+			dvruiToast(m.text, m.kind);
+		});
 	}).fail(function(xhr, status, err) {
 		var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : (err || status);
 		dvruiCallFailed(fn, msg + (xhr.status ? ' (HTTP ' + xhr.status + ')' : ''));
@@ -73,11 +77,201 @@ function dvruiCall(fn, args) {
 }
 
 function dvruiCallFailed(fn, msg) {
-	var el = document.getElementById('statusMessage');
-	if (el) {
-		el.textContent = 'Request ' + fn + ' failed: ' + msg;
+	dvruiToast('Request ' + fn + ' failed: ' + msg, 'error');
+}
+
+/* ---------------------------------------------------------------------------
+ * Messages - the status bar shows only the record engine's status; what the UI
+ * did (saved, deleted, unable to ...) is a toast at the bottom right, above the
+ * bar. A toast hides after 10 seconds (or with its x); more than one stack, the
+ * newest at the bottom. The Messages button on the bar shows the last 5 minutes
+ * of them again - kept for the browser tab, so they last through a reload.
+ * ------------------------------------------------------------------------- */
+var DVRUI_TOAST_SECS = 10;
+var DVRUI_MESSAGE_LOG_SECS = 300;
+var dvruiMessages = dvruiMessagesLoad();
+
+function dvruiMessagesLoad() {
+	try {
+		var saved = JSON.parse(window.sessionStorage.getItem('dvrui_messages') || '[]');
+		return (saved && saved.length !== undefined) ? saved : [];
+	} catch (e) {
+		return [];
 	}
 }
+
+// the messages of the last 5 minutes (older ones are dropped)
+function dvruiMessagesRecent() {
+	var since = new Date().getTime() - DVRUI_MESSAGE_LOG_SECS * 1000;
+	var recent = [];
+	for (var i = 0; i < dvruiMessages.length; i++) {
+		if (dvruiMessages[i].time >= since) {
+			recent.push(dvruiMessages[i]);
+		}
+	}
+	dvruiMessages = recent;
+	try {
+		window.sessionStorage.setItem('dvrui_messages', JSON.stringify(recent));
+	} catch (e) {
+		// not kept through a reload then
+	}
+	return recent;
+}
+
+// a message for the user - $kind ok (green), error (red) or info
+function dvruiToast(text, kind) {
+	text = $.trim(String(text || ''));
+	if (text == '') {
+		return;
+	}
+	kind = (kind == 'ok' || kind == 'error') ? kind : 'info';
+	dvruiMessages.push({time: new Date().getTime(), text: text, kind: kind});
+	dvruiMessagesUpdate();
+
+	var box = document.getElementById('toasts');
+	if (!box) {
+		return;
+	}
+	var toast = document.createElement('div');
+	toast.className = 'toast toast_' + kind;
+	toast.setAttribute('role', kind == 'error' ? 'alert' : 'status');
+	var span = document.createElement('span');
+	span.className = 'toast_text';
+	span.textContent = text;
+	var close = document.createElement('button');
+	close.type = 'button';
+	close.className = 'toast_close';
+	close.title = 'Close';
+	close.setAttribute('aria-label', 'Close this message');
+	close.innerHTML = '&times;';
+	var hide = function() {
+		clearTimeout(toast.hideTimer);
+		if (toast.parentNode) {
+			toast.classList.add('toast_hiding');
+			setTimeout(function() {
+				if (toast.parentNode) {
+					toast.parentNode.removeChild(toast);
+				}
+			}, 300);
+		}
+	};
+	close.onclick = hide;
+	toast.appendChild(span);
+	toast.appendChild(close);
+	box.appendChild(toast);
+	// a toast being read (pointer over it) stays until the pointer leaves
+	toast.onmouseenter = function() {
+		clearTimeout(toast.hideTimer);
+	};
+	toast.onmouseleave = function() {
+		toast.hideTimer = setTimeout(hide, 3000);
+	};
+	toast.hideTimer = setTimeout(hide, DVRUI_TOAST_SECS * 1000);
+}
+
+// the Messages button shows how many there are, and an open list is kept up to date
+function dvruiMessagesUpdate() {
+	var recent = dvruiMessagesRecent();
+	var button = document.getElementById('messages_button');
+	if (button) {
+		button.textContent = recent.length ? 'Messages (' + recent.length + ')' : 'Messages';
+		button.classList.toggle('messages_has_error', recent.some ? recent.some(function(m) { return m.kind == 'error'; }) : false);
+	}
+	var log = document.getElementById('message_log');
+	if (log && !log.hidden) {
+		dvruiMessageLogFill(log, recent);
+	}
+}
+
+function dvruiMessageLogFill(log, recent) {
+	log.innerHTML = '';
+	var head = document.createElement('div');
+	head.className = 'message_log_head';
+	head.textContent = 'Messages - the last 5 minutes';
+	var close = document.createElement('button');
+	close.type = 'button';
+	close.className = 'toast_close';
+	close.title = 'Close';
+	close.setAttribute('aria-label', 'Close the messages');
+	close.innerHTML = '&times;';
+	close.onclick = toggleMessageLog;
+	head.appendChild(close);
+	log.appendChild(head);
+	if (recent.length == 0) {
+		var none = document.createElement('p');
+		none.className = 'message_log_none';
+		none.textContent = 'No messages in the last 5 minutes.';
+		log.appendChild(none);
+		return;
+	}
+	var list = document.createElement('ul');
+	list.className = 'message_log_list';
+	// newest first
+	for (var i = recent.length - 1; i >= 0; i--) {
+		var item = document.createElement('li');
+		item.className = 'message_log_item toast_' + recent[i].kind;
+		var when = document.createElement('span');
+		when.className = 'message_log_time';
+		var t = new Date(recent[i].time);
+		when.textContent = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2);
+		var text = document.createElement('span');
+		text.textContent = recent[i].text;
+		item.appendChild(when);
+		item.appendChild(text);
+		list.appendChild(item);
+	}
+	log.appendChild(list);
+}
+
+// Messages button on the status bar
+function toggleMessageLog() {
+	var log = document.getElementById('message_log');
+	var button = document.getElementById('messages_button');
+	if (!log) {
+		return;
+	}
+	log.hidden = !log.hidden;
+	if (button) {
+		button.setAttribute('aria-expanded', log.hidden ? 'false' : 'true');
+	}
+	if (!log.hidden) {
+		dvruiMessageLogFill(log, dvruiMessagesRecent());
+	}
+}
+
+document.addEventListener('keydown', function(evt) {
+	var log = document.getElementById('message_log');
+	if (evt.key == 'Escape' && log && !log.hidden) {
+		toggleMessageLog();
+	}
+});
+// a click elsewhere closes the list
+document.addEventListener('click', function(evt) {
+	var log = document.getElementById('message_log');
+	if (log && !log.hidden && !log.contains(evt.target) && evt.target.id != 'messages_button') {
+		toggleMessageLog();
+	}
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+	dvruiMessagesUpdate();
+	// older messages drop off the count while the page is open
+	setInterval(dvruiMessagesUpdate, 30000);
+	// keep the record engine status on the bar up to date (not while the tab is
+	// hidden) - quietly, without the loading spinner or any failure message
+	setInterval(function() {
+		if (document.hidden) {
+			return;
+		}
+		$.ajax({url: window.location.pathname, type: 'POST', dataType: 'json', data: {fn: 'dvrStatus'}})
+			.done(function(reply) {
+				var el = document.getElementById('dvr_status');
+				if (el && reply && reply.ok && reply.html && reply.html.dvr_status !== undefined) {
+					el.innerHTML = reply.html.dvr_status;
+				}
+			});
+	}, 30000);
+});
 
 // The PHP functions the page calls - each sends its arguments to the function of the same name
 $.each(['getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
@@ -1259,17 +1453,6 @@ function openTab(evt, tabname) {
 	evt.currentTarget.className += " active";
 }
 
-/* Set the status message */
-function setStatus(msg)
-{
-	isStatusIdle = 0;
-	if(msg == '' || msg == null || msg == undefined)
-	{
-		isStatusIdle = 1;
-		msg = "Idle.";
-	}
-	document.getElementById('statusMessage').innerHTML = msg;
-}
 
 function openLogFile(evt, value)
 {
@@ -1479,11 +1662,11 @@ function checkEngine(evt) {
 		return;
 	}
 	setEngineBusy(true);
-	setStatus('Checking for a newer record engine...');
+	dvruiToast('Checking for a newer record engine...', 'info');
 	checkEngineUpdate().done(function(reply) {
 		var d = (reply && reply.ok) ? reply.data : null;
 		if (!d || d.state != 'newer') {
-			// latest already, or the check failed - the status says which
+			// latest already, or the check failed - the message says which
 			setEngineBusy(false);
 		} else if (!engineUpdateNeedsConfirm(d)) {
 			runEngineUpdate('0');
@@ -1497,7 +1680,7 @@ function checkEngine(evt) {
 
 function runEngineUpdate(confirmed) {
 	setEngineBusy(true);
-	setStatus('Updating the record engine...');
+	dvruiToast('Updating the record engine...', 'info');
 	updateEngine(confirmed).done(function(reply) {
 		var d = (reply && reply.ok) ? reply.data : null;
 		if (d && d.state == 'updating') {
@@ -1518,16 +1701,13 @@ function runEngineUpdate(confirmed) {
 function waitForEngine(expected, previous) {
 	var tries = 0;
 	dvruiLoadingShow();
-	var done = function(msg, reload) {
+	var done = function(msg, ok) {
 		dvruiLoadingHide();
 		setEngineBusy(false);
-		// the dashboard reload sets the status too - show the message after it
-		if (reload && activeTab == 'dashboard_page') {
-			openDashboard().always(function() {
-				setStatus(msg);
-			});
-		} else {
-			setStatus(msg);
+		dvruiToast(msg, ok ? 'ok' : 'error');
+		// the dashboard shows the new version (and the status bar the engine running)
+		if (ok && activeTab == 'dashboard_page') {
+			openDashboard();
 		}
 	};
 	var poll = function() {
@@ -1544,7 +1724,9 @@ function waitForEngine(expected, previous) {
 				done('The record engine has not reported version ' + expected + ' yet (it reports '
 					+ (version || 'nothing') + ') - check the engine log');
 			} else {
-				setStatus('Record engine restarting to update to ' + expected + '...');
+				if (tries == 1) {
+					dvruiToast('Record engine restarting to update to ' + expected + '...', 'info');
+				}
 				setTimeout(poll, 5000);
 			}
 		}).fail(function() {

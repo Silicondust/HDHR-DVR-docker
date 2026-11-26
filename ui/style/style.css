@@ -847,13 +847,220 @@ input[type="text"]:focus {
   position: fixed;
   z-index: 100;
   bottom: 0px;
+  left: 0;
   width: 100%;
-  color: white;
-  text-align: center;
-  overflow-y: auto;
-  overflow-x: none;
-  max-height: 200px;
+  box-sizing: border-box;
   min-height: 20px;
+  padding: 2px 6px 2px 10px;
+  color: white;
+  /* the engine state at the left, its last log line in the centre, Messages at
+   * the right - the sides take what they need, the log line the rest (cut off
+   * with ... when it is too long) */
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+/* its state and log line are laid out by the bar's grid */
+#dvr_status {
+  display: contents;
+}
+/* the state with an icon beside it: green check (running), red ! (error),
+ * yellow ? (warning - the state couldn't be told) */
+.dvr_state {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.9em;
+  font-weight: bold;
+  white-space: nowrap;
+  color: white;
+}
+.dvr_state_icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1;
+  color: white;
+  background: #1e2a3c;
+}
+.dvr_state_running .dvr_state_icon {
+  color: #4cd46e;
+}
+.dvr_state_stopped .dvr_state_icon {
+  color: #ff6b70;
+}
+.dvr_state_unknown .dvr_state_icon {
+  color: #f0c040;
+}
+.dvr_status_text {
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#messages_button {
+  justify-self: end;
+  font: inherit;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.85em;
+  padding: 1px 10px;
+  color: white;
+  background: #3a4f6e;
+  border: solid 1px #2c3d57;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#messages_button:hover,
+#messages_button:focus-visible,
+#messages_button[aria-expanded=true] {
+  background: #2c3d57;
+  outline: none;
+}
+#messages_button.messages_has_error {
+  border-color: #ff8a8a;
+}
+/* toasts - bottom right, just above the status bar, the newest at the bottom */
+#toasts {
+  position: fixed;
+  z-index: 1100;   /* above dialogs */
+  right: 12px;
+  bottom: calc(var(--status-h, 24px) + 8px);
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;   /* only the toasts themselves take clicks */
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 6px 8px 12px;
+  color: white;
+  background: #1e2a3c;
+  border: solid 1px #5577a0;
+  border-left-width: 5px;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  font-size: 0.9em;
+  line-height: 1.35em;
+  animation: toast_in 0.2s ease-out;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.toast.toast_ok {
+  border-color: #3c9c5a;
+}
+.toast.toast_error {
+  border-color: #b03a40;
+}
+.toast.toast_hiding {
+  opacity: 0;
+  transform: translateX(20px);
+}
+@keyframes toast_in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.toast_text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.toast_close {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 18px;
+  color: #BBB;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.toast_close:hover,
+.toast_close:focus-visible {
+  color: white;
+  background: #2c3d57;
+  outline: none;
+}
+/* the messages of the last 5 minutes - over the bottom right, above the bar */
+#message_log {
+  position: fixed;
+  z-index: 1100;
+  right: 12px;
+  bottom: calc(var(--status-h, 24px) + 8px);
+  width: 460px;
+  max-width: calc(100vw - 24px);
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  color: white;
+  background: #1e2a3c;
+  border: solid 1px #5577a0;
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+  font-size: 0.9em;
+}
+#message_log[hidden] {
+  display: none;
+}
+.message_log_head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 6px 12px;
+  font-weight: bold;
+  border-bottom: solid 1px #2c3d57;
+}
+.message_log_none {
+  padding: 12px;
+  color: #BBB;
+  font-style: italic;
+}
+.message_log_list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: #5577a0 #172131;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.message_log_item {
+  display: flex;
+  gap: 10px;
+  padding: 6px 12px 6px 9px;
+  border-left: solid 3px #5577a0;
+  border-bottom: solid 1px #2c3d57;
+  line-height: 1.35em;
+  overflow-wrap: anywhere;
+}
+.message_log_item.toast_ok {
+  border-left-color: #3c9c5a;
+}
+.message_log_item.toast_error {
+  border-left-color: #b03a40;
+}
+.message_log_time {
+  flex: none;
+  color: #BBB;
+  font-family: monospace;
 }
 .logDate {
   font-style: italic;

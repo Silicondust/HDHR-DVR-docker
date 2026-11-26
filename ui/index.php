@@ -25,7 +25,7 @@
 
 	/* The PHP functions the page can call (see dvruiCall in hdhomerundvr_ui.js) */
 	$exported = array('getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
-		'checkEngineUpdate', 'updateEngine', 'engineVersion', 'openSettingsPage', 'saveSetting', 'clearApiCache');
+		'checkEngineUpdate', 'updateEngine', 'engineVersion', 'openSettingsPage', 'saveSetting', 'clearApiCache', 'dvrStatus');
 	// The Recordings and series pages (and their actions) are only in the full UI -
 	// DVRUI_ENABLE=minimal is the Dashboard and Diagnostics. Functions that aren't
 	// exported can't be called, so they aren't just hidden.
@@ -41,7 +41,7 @@
 
 	// Prep data for the page
 	error_log( "Get latest Status" );
-	$statusmsg = getLatestHDHRStatus();
+	$statusmsg = dvruiStatusHtml();
 
 	// Get HDHR Version
 	error_log( "Get HDHR DVR version" );

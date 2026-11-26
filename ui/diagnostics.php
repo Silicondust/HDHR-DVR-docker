@@ -44,16 +44,11 @@
 		$result = ob_get_contents();
 		ob_end_clean();
 
-		// get latest status	
-		$statusmsg = getLatestHDHRStatus();
 	
 		//display
 		$tab->setHtml("diagnostics_box", $htmlStr);
 
-		if ($result != '' && $result != NULL)
-			$tab->setHtml("statusMessage", $result);
-		else
-			$tab->setHtml("statusMessage", $statusmsg);
+		$tab->output($result);
 		return $tab->getString();
   }
 

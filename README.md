@@ -81,7 +81,7 @@ If specified - then everything in /dvrdata and /dvrrec will be changed to the ne
 Every time the container starts, the container downloads SiliconDust's latest engine - the release, and the beta too when `BetaEngine=1` in the dvr.conf - and installs whichever is newest, if it is newer than the engine installed.
 
 The Dashboard can also check for a newer engine and update to it without restarting the container - use the button below the config update button, next to the record engine parameters:
-- **Already the latest** - nothing happens; the status bar shows the engine version running and the latest from SiliconDust.
+- **Already the latest** - nothing happens; a message shows the engine version running and the latest from SiliconDust.
 - **Newer, and nothing recording** - the record engine is restarted, installs the newer engine as it starts, and the header shows the new version once it is running.
 - **Newer, but recordings are in progress or about to start** - you are asked whether to update anyway, with a list of the recordings. Updating restarts the engine, so recordings in progress (or starting during the update) are interrupted.
 

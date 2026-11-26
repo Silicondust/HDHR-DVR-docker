@@ -5,8 +5,16 @@
   Copyright (c) 2026 Silicondust USA Inc.
   Released under the MIT License - see LICENSE
 -->
+    <!-- toasts - what the UI did (saved, deleted, unable to ...), above the status bar -->
+    <div id="toasts" aria-live="polite"></div>
+    <!-- the messages of the last 5 minutes (Messages button) -->
+    <div id="message_log" role="dialog" aria-label="Messages" hidden></div>
     <div id="network_status">
-        <pre id="statusMessage"><!--dvr-statusmsg--></pre>
+        <div id="statusMessage">
+            <span id="dvr_status"><!--dvr-statusmsg--></span>
+            <button type="button" id="messages_button" onclick="toggleMessageLog()"
+                title="Show the messages of the last 5 minutes" aria-haspopup="dialog">Messages</button>
+        </div>
     </div>
 </body>
 </html>

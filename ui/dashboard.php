@@ -31,15 +31,10 @@
 		$result = ob_get_contents();
 		ob_end_clean();
 
-		// get latest status	
-		$statusmsg = getLatestHDHRStatus();
 	
 		//display
 		$tab->setHtml("dashboard_box", $htmlStr);
-		if ($result != '' && $result != NULL)
-			$tab->setHtml("statusMessage", $result);
-		else
-			$tab->setHtml("statusMessage", $statusmsg);
+		$tab->output($result);
 		return $tab->getString();
 	}
 
@@ -278,7 +273,6 @@
 			$htmlStr.= $entryStr;
 		}
 	
-		$statusmsg = getLatestHDHRStatus();
 		//get data
 		$result = ob_get_contents();
 		ob_end_clean();
@@ -288,10 +282,7 @@
 		$tab->setHtml("logfile_box", $htmlStr);
 		$tab->setHtml("logfile_name", logFileNameBar($filename));
 		$tab->setHtml("logfile_filter", logFilterBar($typeCounts, $typeClasses));
-		if ($result != '' && $result != NULL)
-			$tab->setHtml("statusMessage", $result);
-		else
-			$tab->setHtml("statusMessage", $statusmsg);
+		$tab->output($result);
 		return $tab->getString();
 	}
 
@@ -317,7 +308,6 @@
 		$htmlStr = str_replace('<!-- dvrui_dashboard_hdhr -->',loadHDHRPane(),$htmlStr);
 		$htmlStr = str_replace('<!-- dvrui_dashboard_logs -->',loadLogFilePane($serverConfig),$htmlStr);
 		
-		$statusmsg = getLatestHDHRStatus();
 	
 		//get data
 		$result = ob_get_contents();
@@ -325,10 +315,8 @@
 		
 		//display
 		$tab->setHtml("dashboard_box", $htmlStr);
-		if ($result != '' && $result != NULL)
-			$tab->setHtml("statusMessage", $result);
-		else
-			$tab->setHtml("statusMessage", $statusmsg);
+		$tab->output($result);
+		$tab->message('Saved the record engine settings', 'ok');
 		return $tab->getString();
 	}
 

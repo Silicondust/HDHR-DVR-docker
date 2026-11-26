@@ -296,7 +296,7 @@
 
 	function dvruiEngineUpdateReply($check, $state, $message) {
 		$tab = new DVRUI_AjaxResponse();
-		$tab->setHtml('statusMessage', htmlspecialchars($message));
+		$tab->message($message, ($state == 'error') ? 'error' : (($state == 'current') ? 'ok' : 'info'));
 		$tab->setData('state', $state);
 		$tab->setData('message', $message);
 		$tab->setData('current', $check['current']);

@@ -135,13 +135,13 @@
 		ob_end_clean();
 		if ($rule === null) {
 			$tab->setHtml("rules_dialog", '');
-			$tab->setHtml("statusMessage", 'That rule no longer exists - press Reload to see the rules as they are now');
+			$tab->message('That rule no longer exists - press Reload to see the rules as they are now', 'error');
 			return $tab->getString();
 		}
 		$episodes = rulesUpcoming($hdhr, rulesText($rule, 'SeriesID'));
 		$tab->setHtml("rules_dialog",
 			rulesEditorHtml($rule, $episodes, rulesChannelNames($hdhr, array($rule))));
-		$tab->setHtml("statusMessage", ($result != '' && $result != NULL) ? $result : getLatestHDHRStatus());
+		$tab->output($result);
 		return $tab->getString();
 	}
 
@@ -282,7 +282,8 @@
 		ob_end_clean();
 		$tab->setHtml("rules_box", buildRulesPage($after, $hdhr));
 		$tab->setHtml("rules_dialog", '');
-		$tab->setHtml("statusMessage", ($result != '' && $result != NULL) ? $result : htmlspecialchars($message));
+		$tab->output($result);
+		$tab->message($message, count($kept) ? 'error' : 'ok');
 		return $tab->getString();
 	}
 
@@ -291,7 +292,7 @@
 		$tab = new DVRUI_AjaxResponse();
 		ob_end_clean();
 		$tab->setHtml("re_footer", rulesEditorFooter($message));
-		$tab->setHtml("statusMessage", htmlspecialchars($message));
+		$tab->message($message, 'error');
 		return $tab->getString();
 	}
 
@@ -995,7 +996,7 @@
 		return "<p class='" . ($error ? 're_none' : 're_note') . "'>" . htmlspecialchars($text) . "</p>";
 	}
 
-	// id => html out, and the message for the dialog and the status bar (ob_start is called by the caller)
+	// id => html out, and the message for the dialog and a toast (ob_start is called by the caller)
 	function newRuleResponse($parts, $message, $error = false) {
 		$tab = new DVRUI_AjaxResponse();
 		$result = ob_get_contents();
@@ -1006,28 +1007,20 @@
 		if ($message != '') {
 			$tab->setHtml('nr_message', "<span class='" . ($error ? 're_error' : 'nr_ok') . "'>" . htmlspecialchars($message) . "</span>");
 		}
-		if ($result != '' && $result != NULL) {
-			$tab->setHtml("statusMessage", $result);
-		} else if ($message != '') {
-			$tab->setHtml("statusMessage", htmlspecialchars($message));
-		}
+		$tab->output($result);
+		$tab->message($message, $error ? 'error' : 'ok');
 		return $tab->getString();
 	}
 
-	// Page and status message out (ob_start is called by the caller)
+	// Page and message out (ob_start is called by the caller)
 	function rulesResponse($htmlStr, $message) {
 		// the cloud JSON is UTF-8 already - don't re-encode it
 		$tab = new DVRUI_AjaxResponse();
 		$result = ob_get_contents();
 		ob_end_clean();
 		$tab->setHtml("rules_box", $htmlStr);
-		if ($result != '' && $result != NULL) {
-			$tab->setHtml("statusMessage", $result);
-		} else if ($message != '') {
-			$tab->setHtml("statusMessage", htmlspecialchars($message));
-		} else {
-			$tab->setHtml("statusMessage", getLatestHDHRStatus());
-		}
+		$tab->output($result);
+		$tab->message($message);
 		return $tab->getString();
 	}
 

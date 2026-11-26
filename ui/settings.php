@@ -22,7 +22,7 @@
 		$result = ob_get_contents();
 		ob_end_clean();
 		$tab->setHtml("settings_box", $html);
-		$tab->setHtml("statusMessage", ($result != '' && $result != NULL) ? $result : getLatestHDHRStatus());
+		$tab->output($result);
 		return $tab->getString();
 	}
 
@@ -58,7 +58,8 @@
 		$result = ob_get_contents();
 		ob_end_clean();
 		$tab->setHtml("settings_box", $html);
-		$tab->setHtml("statusMessage", ($result != '' && $result != NULL) ? $result : htmlspecialchars($message));
+		$tab->output($result);
+		$tab->message($message, ($error != '') ? 'error' : 'ok');
 		return $tab->getString();
 	}
 
