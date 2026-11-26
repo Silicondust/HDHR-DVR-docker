@@ -44,15 +44,147 @@
 	}
 
 	/*
+	 * Requests to the SiliconDust servers (DVRUI_apiurl) are cached for a short
+	 * time (the SiliconDust server cache setting, default 30 seconds - 0 is off),
+	 * so moving between pages doesn't ask them again for the same thing. The
+	 * Reload button (clearApiCache), the Diagnostics page and anything that changes
+	 * data on the servers (see rulesApiPost) clear the cache, so they get fresh
+	 * answers - and those fetches fill the cache again.
+	 *
+	 * The cache is a file per URL in the temp folder, named by a hash of the URL
+	 * (it holds the DeviceAuth), readable only by the PHP user. Only good answers
+	 * (HTTP 2xx, valid JSON - "null" included) are cached; a failure is asked again.
+	 */
+	function dvruiApiCacheDir() {
+		return sys_get_temp_dir() . '/dvrui_api_cache';
+	}
+
+	function dvruiApiCacheSecs() {
+		if (!function_exists('dvruiSetting')) {
+			require_once("includes/dvrui_settings.php");
+		}
+		return max(0, (int)dvruiSetting('DVRUI_apiCacheSecs'));
+	}
+
+	/* Forget everything cached - after a change is sent to the SiliconDust servers */
+	function dvruiApiCacheClear() {
+		foreach (glob(dvruiApiCacheDir() . '/*.json') ?: array() as $file) {
+			@unlink($file);
+		}
+	}
+
+	function dvruiApiCacheFile($url) {
+		return dvruiApiCacheDir() . '/' . sha1($url) . '.json';
+	}
+
+	/* The cached answer for a URL when it is fresh - array(decoded JSON), or false */
+	function dvruiApiCacheRead($url, $secs) {
+		$file = dvruiApiCacheFile($url);
+		if ($secs > 0 && is_file($file) && time() - filemtime($file) < $secs) {
+			$json = @file_get_contents($file);
+			if (is_string($json) && $json !== '') {
+				return array(json_decode($json, true));
+			}
+		}
+		return false;
+	}
+
+	/* Keep a good answer (HTTP 2xx, valid JSON) for a URL */
+	function dvruiApiCacheWrite($url, $code, $json, $secs) {
+		if ($secs <= 0 || $code < 200 || $code >= 300 || !is_string($json) || $json === '') {
+			return;
+		}
+		json_decode($json);
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			return;
+		}
+		$dir = dvruiApiCacheDir();
+		if (!is_dir($dir) && !@mkdir($dir, 0700)) {
+			return;
+		}
+		// write then rename, so another request never reads half a file
+		$file = dvruiApiCacheFile($url);
+		$tmp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
+		if (@file_put_contents($tmp, $json) === strlen($json)) {
+			@chmod($tmp, 0600);
+			@rename($tmp, $file);
+		} else {
+			@unlink($tmp);
+		}
+	}
+
+	/* Drop cached answers that have expired (e.g. for an old DeviceAuth) */
+	function dvruiApiCachePrune($secs) {
+		foreach (glob(dvruiApiCacheDir() . '/*.json') ?: array() as $old) {
+			if (time() - @filemtime($old) >= $secs) {
+				@unlink($old);
+			}
+		}
+	}
+
+	/* GET a SiliconDust server URL, from the cache when it is fresh - like getJsonFromUrl */
+	function getJsonFromApi($url) {
+		$results = getJsonFromApis(array(0 => $url), 1);
+		return $results[0];
+	}
+
+	/* GET several SiliconDust server URLs in parallel, each from the cache when it is
+	 * fresh - like getJsonFromUrls (key => url in, key => decoded JSON out) */
+	function getJsonFromApis($urls, $parallel = 8) {
+		$secs = dvruiApiCacheSecs();
+		$results = array();
+		$fetch = array();
+		foreach ($urls as $key => $url) {
+			$cached = dvruiApiCacheRead($url, $secs);
+			if ($cached !== false) {
+				$results[$key] = $cached[0];
+			} else {
+				$fetch[$key] = $url;
+			}
+		}
+		if (count($fetch)) {
+			if ($secs > 0) {
+				dvruiApiCachePrune($secs);
+			}
+			foreach (dvruiFetchUrls($fetch, $parallel) as $key => $answer) {
+				list($code, $json) = $answer;
+				dvruiApiCacheWrite($fetch[$key], $code, $json, $secs);
+				$results[$key] = (is_string($json) && $json !== '') ? json_decode($json, true) : null;
+			}
+		}
+		// in the order asked for
+		$ordered = array();
+		foreach ($urls as $key => $url) {
+			$ordered[$key] = $results[$key];
+		}
+		return $ordered;
+	}
+
+	/*
 	 * Fetch several JSON URLs in parallel (curl multi), at most $parallel at a time.
 	 * $urls is an array of key => url; returns key => decoded JSON (null on failure).
 	 * Falls back to fetching one at a time if curl isn't available.
 	 */
 	function getJsonFromUrls($urls, $parallel = 8) {
 		$results = array();
+		foreach (dvruiFetchUrls($urls, $parallel) as $key => $answer) {
+			$results[$key] = (is_string($answer[1]) && $answer[1] !== '') ? json_decode($answer[1], true) : null;
+		}
+		return $results;
+	}
+
+	/*
+	 * GET several URLs, at most $parallel at a time - key => array(HTTP status, body
+	 * or null). Without curl they are fetched one at a time (status 200 if it worked).
+	 */
+	function dvruiFetchUrls($urls, $parallel = 8) {
+		$results = array();
 		if (!function_exists('curl_multi_init')) {
 			foreach ($urls as $key => $url) {
-				$results[$key] = getJsonFromUrl($url);
+				$context = stream_context_create(array('http' => array(
+					'header' => "Connection: close\r\n", 'timeout' => 2.0)));
+				$body = @file_get_contents($url, false, $context);
+				$results[$key] = ($body === false) ? array(0, null) : array(200, $body);
 			}
 			return $results;
 		}
@@ -81,8 +213,8 @@
 			while ($info = curl_multi_info_read($mh)) {
 				$id = (int)$info['handle'];
 				list($key, $ch) = $active[$id];
-				$json = curl_multi_getcontent($ch);
-				$results[$key] = (is_string($json) && $json !== '') ? json_decode($json, true) : null;
+				$body = curl_multi_getcontent($ch);
+				$results[$key] = array((int)curl_getinfo($ch, CURLINFO_HTTP_CODE), is_string($body) ? $body : null);
 				curl_multi_remove_handle($mh, $ch);
 				unset($active[$id]);
 			}

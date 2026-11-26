@@ -242,7 +242,7 @@ class DVRUI_HDHRjson {
 	 * Cloud discovery - lists devices that share this network's public IP
 	 */
 	private function discover_cloud() {
-		$hdhr_data = getJsonFromUrl(DVRUI_Vars::DVRUI_apiurl . 'discover');
+		$hdhr_data = getJsonFromApi(DVRUI_Vars::DVRUI_apiurl . 'discover');
 		if (!is_array($hdhr_data)) {
 			$this->log('Cloud discovery returned no data');
 			return;

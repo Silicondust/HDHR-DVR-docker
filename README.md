@@ -47,7 +47,7 @@ Use the DVRUI_ENABLE environment variable to choose how much of the UI runs:
 
 | DVRUI_ENABLE | UI |
 | --------| ------- |
-| full (default) | The whole UI - Dashboard, Recordings (with the series pages and their actions), Rules (the account's recording rules - edit their channels, seasons and padding, change their priority or delete them) and Diagnostics |
+| full (default) | The whole UI - Dashboard, Recordings (with the series pages and their actions), Rules (the account's recording rules - add a rule by searching the guide (a whole series or the current season - on all channels or one, and for sports only the games with chosen teams - or a single airing), edit their channels, teams, seasons and padding, change their priority or delete them) and Diagnostics |
 | minimal | The Dashboard and Diagnostics only |
 | none | No UI at all - NGINX and PHP FPM are not started, the container just runs the record engine. DVRUI_PORT and DVRUI_TZ aren't needed (PUID/PGID still apply to the engine) |
 
@@ -61,6 +61,12 @@ effect on the next page or Reload:
 | mDNS discovery | On | Look up `hdhomerun.local` with multicast DNS (IPv4, and IPv6 when IPv6 discovery is on) |
 | IPv6 discovery | On | Discover devices over IPv6 when the container has IPv6 |
 | Cloud discovery | On | Ask the SiliconDust cloud for devices local discovery did not reach |
+| Record | All episodes | What a new rule records - All episodes, Current season or New episodes only (first aired on or after the day the rule is added, so reruns of older episodes are skipped). The New Rule dialog starts with this; it can be changed there for each rule |
+| Insert Priority | Lowest | Where a new rule goes in the priority order - Lowest (bottom) or Highest (top, under one-time recordings). When rules want the same tuner at the same time, the higher one records. The New Rule dialog starts with this |
+| Start padding | 60 seconds | How early a recording starts - the padding the New Rule dialog starts with (it can be changed there for each rule); at most 3600 |
+| End padding | 60 seconds | How late a recording ends - the padding the New Rule dialog starts with (it can be changed there for each rule); at most 10800 |
+| Sports end padding | 1800 seconds | The end padding the New Rule dialog uses for sports (a show whose games have teams), as games often run over; at most 10800 |
+| SiliconDust server cache | 30 seconds | How long answers from the SiliconDust servers (recording rules, guide searches, upcoming episodes, cloud discovery) are reused before asking again, so moving between pages doesn't keep asking for the same thing. The Reload button, the Diagnostics page and changes made in the UI (adding, moving, editing or deleting a rule) clear the cache, so they always get fresh answers. 0 turns the cache off; at most 600 |
 
 The settings are kept in `dvrui_settings.json` in /dvrdata, so they last through container restarts and updates.
 The defaults are in `ui/vars.php`.

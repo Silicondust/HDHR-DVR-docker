@@ -1828,6 +1828,51 @@ html {
 .setting_switch input:disabled + .setting_slider {
   opacity: 0.45;
 }
+/* drop-down setting - under its description */
+.setting_select {
+  margin-top: 6px;
+  font: inherit;
+  font-size: 0.9em;
+  padding: 2px 4px;
+  color: white;
+  background: #172131;
+  border: solid 1px #3a4a60;
+  border-radius: 4px;
+}
+.setting_select:focus-visible {
+  outline: 2px solid #96D0F7;
+  outline-offset: 1px;
+}
+.setting_select:disabled {
+  opacity: 0.45;
+}
+/* number setting - a small box with its unit, in the switch's place */
+.setting_number {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.setting_number input {
+  width: 64px;
+  padding: 2px 4px;
+  color: white;
+  background: #172131;
+  border: solid 1px #3a4a60;
+  border-radius: 4px;
+  font: inherit;
+}
+.setting_number input:focus-visible {
+  outline: 2px solid #96D0F7;
+  outline-offset: 1px;
+}
+.setting_number input:disabled {
+  opacity: 0.45;
+}
+.setting_unit {
+  color: #BBB;
+  font-size: 0.85em;
+}
 .settings_note {
   color: #BBB;
   font-size: 0.85em;
@@ -1867,6 +1912,21 @@ html {
 #rules_count {
   font-style: normal;
   font-weight: bold;
+}
+/* the header text, with + New Rule at the right */
+#rules_box > #rules_header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rules_header_text {
+  flex: 1;
+  min-width: 0;
+}
+#rules_new {
+  flex: none;
+  font-style: normal;
+  padding: 4px 12px;
 }
 #rules_list {
   padding: 5px 10px 10px 5px;
@@ -2171,6 +2231,293 @@ html {
 }
 #re_footer .modal_buttons {
   margin-top: 14px;
+}
+/* New Rule dialog - search, the shows that match, then the one picked;
+ * the padding and Close stay at the bottom while the middle scrolls */
+.modal_box.rule_editor.rule_new {
+  width: 720px;
+  height: calc(100vh - 60px);
+  max-height: 820px;
+  gap: 10px;
+}
+.rule_new > .re_section {
+  flex: none;
+}
+#nr_search_form {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+#nr_search {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 4px 8px;
+  color: black;
+  background: #dbe4ef;
+  border: solid 1px #5577a0;
+  border-radius: 4px;
+}
+#nr_search:focus-visible {
+  outline: 2px solid #96D0F7;
+  outline-offset: 1px;
+}
+#nr_body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: #5577a0 #172131;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 2px;
+}
+#nr_body > #nr_series:empty {
+  display: none;
+}
+.nr_results_title {
+  color: #BBB;
+  font-size: 0.85em;
+  margin-bottom: 4px;
+}
+.nr_list {
+  max-height: 232px;
+  overflow-y: auto;
+  scrollbar-color: #5577a0 #172131;
+  background: #172131;
+  border-radius: 4px;
+}
+.nr_item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 4px 4px;
+  font: inherit;
+  font-size: 0.9em;
+  text-align: left;
+  color: #DDD;
+  background: none;
+  border: none;
+  border-left: solid 3px transparent;
+  border-bottom: solid 1px #1e2a3c;
+  cursor: pointer;
+}
+.nr_item:hover,
+.nr_item:focus-visible {
+  color: white;
+  background: #22324a;
+  outline: none;
+}
+.nr_item.nr_item_selected {
+  color: white;
+  background: #2c3d57;
+  border-left-color: #f0c040;
+}
+.nr_thumb {
+  flex: none;
+  width: 64px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 2px;
+  background: #1e2a3c;
+}
+.nr_item_title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nr_has_rule {
+  flex: none;
+}
+.nr_item_count {
+  flex: none;
+  min-width: 80px;
+  text-align: right;
+  color: #BBB;
+  font-size: 0.9em;
+}
+h4.nr_series_title {
+  color: white;
+  text-shadow: none;
+  font-size: 1.1em;
+  margin: 0;
+}
+.nr_record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+}
+.nr_record .re_choice {
+  margin: 2px 10px 2px 0;
+}
+/* "Channel" and "Teams" line up */
+.nr_record_label {
+  min-width: 56px;
+}
+/* Record and Insert Priority - across the dialog, above the airings */
+.nr_options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #172131;
+  border-radius: 4px;
+}
+.nr_options .nr_record_label {
+  min-width: 110px;
+}
+.nr_channel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nr_channel select {
+  font: inherit;
+  max-width: 100%;
+  padding: 2px 4px;
+  background: #dbe4ef;
+  color: black;
+}
+.nr_upcoming_list {
+  max-height: 260px;
+}
+/* airings not on the channel, or without the teams, chosen */
+.re_upcoming_list tr.nr_hidden {
+  display: none;
+}
+/* Teams in the New Rule dialog - the choices sit to the right of the label */
+.nr_teams {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.nr_teams > .nr_record_label {
+  padding-top: 4px;
+}
+.nr_teams_choices {
+  flex: 1;
+  min-width: 0;
+}
+/* Teams - a scrolling list, a row per team (All teams first, kept in view) */
+.re_team_list {
+  max-height: 113px;          /* 4 rows (28px each) - more scroll */
+  overflow-y: auto;
+  scrollbar-color: #5577a0 #172131;
+  background: #172131;
+  border: solid 1px #2c3d57;
+  border-radius: 4px;
+}
+.re_team_row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 8px;
+  font-size: 0.9em;
+  border-bottom: solid 1px #1e2a3c;
+  cursor: pointer;
+}
+.re_team_row:hover {
+  background: #22324a;
+}
+.re_team_row:has(input:checked) {
+  background: #2c3d57;
+}
+.re_team_all {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #22324a;
+  border-bottom-color: #2c3d57;
+}
+.re_team_name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.re_team_count {
+  flex: none;
+  color: #BBB;
+  font-size: 0.9em;
+}
+.nr_upcoming_list th.nr_once_col,
+.nr_upcoming_list td.nr_once_col {
+  width: 1%;
+  padding: 1px 6px;
+  text-align: center;
+  vertical-align: middle;
+}
+.nr_once {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #e86a70;
+  background: #2c3d57;
+  border: solid 1px #3a4f6e;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.nr_once:hover,
+.nr_once:focus-visible {
+  color: white;
+  background: #b03a40;
+  border-color: #b03a40;
+  outline: none;
+}
+.nr_once:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.nr_once svg {
+  display: block;
+}
+.nr_sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.re_padding input[type=number] {
+  font: inherit;
+  width: 72px;
+  margin: 0 4px;
+  padding: 2px 4px;
+  background: #dbe4ef;
+  color: black;
+}
+#nr_footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#nr_message {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.9em;
+}
+#nr_message .re_error {
+  margin: 0;
+}
+/* Cancel/Close is what Enter presses - shown as the default button */
+.modal_button.nr_default {
+  border-color: #96D0F7;
+  box-shadow: 0 0 0 1px #96D0F7;
+}
+.nr_ok {
+  color: #7fd38f;
 }
 .modal_button:disabled {
   opacity: 0.45;

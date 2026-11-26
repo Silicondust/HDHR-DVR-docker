@@ -83,7 +83,9 @@ function dvruiCallFailed(fn, msg) {
 $.each(['getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
 	'openRecordedPage', 'openSeriesPage', 'seriesActionPage', 'openRulesPage',
 	'moveRulePage', 'deleteRulePage', 'openRuleEditor', 'saveRulePage',
-	'checkEngineUpdate', 'updateEngine', 'engineVersion', 'openSettingsPage', 'saveSetting'], function(i, fn) {
+	'newRuleOpen', 'newRuleSearch', 'newRuleSeries', 'newRuleAdd', 'newRuleAddOnce',
+	'checkEngineUpdate', 'updateEngine', 'engineVersion', 'openSettingsPage', 'saveSetting',
+	'clearApiCache'], function(i, fn) {
 	window[fn] = function() {
 		return dvruiCall(fn, Array.prototype.slice.call(arguments));
 	};
@@ -128,12 +130,13 @@ function loadTab(tabname, force) {
 	}
 }
 
-/* Settings - a switch saves as soon as it is changed (the page comes back with
- * what was saved, so a switch that couldn't be saved goes back) */
+/* Settings - a switch or number saves as soon as it is changed (the page comes back
+ * with what was saved, so a setting that couldn't be saved goes back) */
 function changeSetting(input)
 {
-	$('#settings_box input[data-setting]').prop('disabled', true);
-	saveSetting(input.getAttribute('data-setting'), input.checked ? '1' : '0').fail(function() {
+	var value = (input.type == 'checkbox') ? (input.checked ? '1' : '0') : input.value;
+	$('#settings_box [data-setting]').prop('disabled', true);
+	saveSetting(input.getAttribute('data-setting'), value).fail(function() {
 		openSettingsPage();
 	});
 }
@@ -625,8 +628,67 @@ function closeRuleEditor() {
 	document.getElementById('rules_dialog').innerHTML = '';
 }
 
-// channel boxes only count with "Only these channels"; Save needs at least one then
+/* The Teams list in a dialog (prefix re = Edit, nr = New Rule) - All teams, or the
+ * teams ticked. Returns {only, teams: [names]} (only is false for All teams). */
+function ruleTeamsChoice(prefix) {
+	var checks = document.querySelectorAll('.' + prefix + '_team_check');
+	var choice = {only: false, teams: []};
+	for (var i = 0; i < checks.length; i++) {
+		if (checks[i].checked) {
+			choice.teams.push(checks[i].value);
+		}
+	}
+	choice.only = choice.teams.length > 0;
+	return choice;
+}
+
+/* A box in the Teams list was changed: ticking a team unticks All teams, ticking
+ * All teams unticks the teams, and with no team ticked All teams is ticked again
+ * (so the choice is never empty) */
+function ruleTeamsPick(box, prefix) {
+	var all = document.querySelector('.' + prefix + '_team_all');
+	var checks = document.querySelectorAll('.' + prefix + '_team_check');
+	var i;
+	if (box == all) {
+		for (i = 0; i < checks.length; i++) {
+			checks[i].checked = false;
+		}
+		all.checked = true;
+		return;
+	}
+	var any = false;
+	for (i = 0; i < checks.length; i++) {
+		if (checks[i].checked) {
+			any = true;
+		}
+	}
+	if (all) {
+		all.checked = !any;
+	}
+}
+
+// does an airing's row (data-teams "A|B") have one of the teams chosen?
+function ruleRowHasTeam(row, choice) {
+	if (!choice.only) {
+		return true;
+	}
+	var teams = (row.getAttribute('data-teams') || '').split('|');
+	for (var i = 0; i < teams.length; i++) {
+		if (teams[i] != '' && choice.teams.indexOf(teams[i]) >= 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// channel boxes only count with "Only these channels"; Save needs at least one then.
+// The episodes listed follow the teams chosen.
 function updateRuleEditor() {
+	var teams = ruleTeamsChoice('re');
+	var rows = document.querySelectorAll('#re_form .re_upcoming_list tbody tr');
+	for (var r = 0; r < rows.length; r++) {
+		rows[r].classList.toggle('nr_hidden', !ruleRowHasTeam(rows[r], teams));
+	}
 	var only = document.querySelector("#re_form input[name=re_channels][value=only]");
 	var checks = document.querySelectorAll('#re_form .re_channel_check');
 	var any = false;
@@ -663,7 +725,8 @@ function saveRuleEditor() {
 	save.disabled = true;
 	save.textContent = 'Saving...';
 	saveRulePage(editor.getAttribute('data-ruleid'), channels.join('|'), recent ? recent.value : '0',
-		document.getElementById('re_start').value, document.getElementById('re_end').value);
+		document.getElementById('re_start').value, document.getElementById('re_end').value,
+		ruleTeamsChoice('re').teams.join('|'));
 }
 
 // a newly opened dialog - set up its channel boxes and focus the first choice;
@@ -689,7 +752,241 @@ document.addEventListener('keydown', function(evt) {
 	if (evt.key == 'Escape' && document.getElementById('rule_editor')) {
 		closeRuleEditor();
 	}
+	// (Esc in a search box with text in it just clears the text)
+	if (evt.key == 'Escape' && document.getElementById('rule_new')
+			&& !(evt.target && evt.target.id == 'nr_search' && evt.target.value != '')) {
+		closeNewRule();
+	}
 });
+
+/* Rules page + New Rule - the server fills #rules_dialog with the New Rule dialog
+ * (see newRuleOpen in rules.php): search the guide, pick a show, then record all
+ * of it, the current season, or single airings. It stays open until closed. */
+function newRule() {
+	document.getElementById('rules_dialog').innerHTML = "<div class='modal_overlay' id='rule_new'>"
+		+ "<div class='modal_box rule_editor'><p class='modal_message'>Loading...</p></div></div>";
+	newRuleOpen().done(function() {
+		var search = document.getElementById('nr_search');
+		if (search) {
+			search.focus();
+		}
+	});
+}
+
+function closeNewRule() {
+	document.getElementById('rules_dialog').innerHTML = '';
+}
+
+function newRuleMessage(text, error) {
+	var msg = document.getElementById('nr_message');
+	if (msg) {
+		msg.innerHTML = '';
+		var span = document.createElement('span');
+		span.className = error ? 're_error' : 'nr_ok';
+		span.textContent = text;
+		msg.appendChild(span);
+	}
+}
+
+function searchNewRule() {
+	var search = document.getElementById('nr_search');
+	var button = document.getElementById('nr_search_button');
+	var term = search ? search.value.trim() : '';
+	if (term.length < 2) {
+		newRuleMessage('Type at least two letters to search for', true);
+		return;
+	}
+	newRuleMessage('', false);
+	document.getElementById('nr_results').innerHTML = "<p class='re_note'>Searching the guide...</p>";
+	document.getElementById('nr_series').innerHTML = '';
+	newRuleBusy(false);
+	button.disabled = true;
+	newRuleSearch(term).always(function() {
+		button.disabled = false;
+	});
+}
+
+function pickNewRuleSeries(item) {
+	var items = document.querySelectorAll('#nr_results .nr_item');
+	for (var i = 0; i < items.length; i++) {
+		items[i].classList.toggle('nr_item_selected', items[i] == item);
+		items[i].setAttribute('aria-pressed', items[i] == item ? 'true' : 'false');
+	}
+	var series = document.getElementById('nr_series');
+	series.innerHTML = "<p class='re_note'>Getting the upcoming airings...</p>";
+	newRuleMessage('', false);
+	newRuleBusy(false);
+	newRuleSeries(item.getAttribute('data-seriesid'), item.getAttribute('data-title')).done(function() {
+		newRuleEndPadding();
+		series.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+	}).always(function() {
+		newRuleBusy(false);
+	});
+}
+
+/* A show was picked - its end padding: the Sports end padding setting for sports
+ * (games with teams), otherwise End padding. A box changed by hand is left as it is. */
+function newRuleEndPadding() {
+	var selected = document.getElementById('nr_selected');
+	var box = document.getElementById('nr_end');
+	var note = document.getElementById('nr_end_note');
+	if (!selected || !box || box.getAttribute('data-edited')) {
+		return;
+	}
+	box.value = selected.getAttribute('data-end-padding');
+	if (note) {
+		note.textContent = selected.getAttribute('data-sports') == '1' ? '(sports - games often run over)' : '';
+	}
+}
+
+// the padding boxes as whole seconds in range, or null (with a message) if they aren't
+function newRulePadding() {
+	var boxes = [document.getElementById('nr_start'), document.getElementById('nr_end')];
+	var values = [];
+	for (var i = 0; i < boxes.length; i++) {
+		var box = boxes[i];
+		var text = box.value.trim();
+		if (!/^\d+$/.test(text) || +text > +box.max) {
+			newRuleMessage((i == 0 ? 'Start' : 'End') + ' padding must be whole seconds from 0 to ' + box.max, true);
+			box.focus();
+			return null;
+		}
+		values.push(text);
+	}
+	return values;
+}
+
+// While a rule is being added nothing can be sent again. Save needs a show picked.
+function newRuleBusy(busy) {
+	var buttons = document.querySelectorAll('#nr_series .nr_once');
+	for (var i = 0; i < buttons.length; i++) {
+		buttons[i].disabled = busy;
+	}
+	var save = document.getElementById('nr_save');
+	if (save) {
+		var picked = !!document.getElementById('nr_selected');
+		var recorded = newRuleRecorded();
+		save.disabled = busy || !picked || recorded;
+		save.title = recorded ? 'An airing has been recorded - Close to finish'
+			: (picked ? '' : 'Search for a show and pick one first');
+	}
+}
+
+// once an airing has been recorded the dialog is done: Save is off and Cancel is Close
+function newRuleRecorded() {
+	var dialog = document.getElementById('rule_new');
+	return !!(dialog && dialog.getAttribute('data-recorded'));
+}
+
+function newRuleSetRecorded() {
+	var dialog = document.getElementById('rule_new');
+	var cancel = document.getElementById('nr_cancel');
+	if (dialog) {
+		dialog.setAttribute('data-recorded', '1');
+	}
+	if (cancel) {
+		cancel.textContent = 'Close';
+	}
+}
+
+// Enter in the dialog presses Cancel/Close - except in the search box (it searches)
+// and on a button or list (they handle Enter themselves)
+function newRuleKey(evt) {
+	if (evt.key != 'Enter' || evt.defaultPrevented) {
+		return;
+	}
+	var target = evt.target;
+	if (target && (target.id == 'nr_search' || target.tagName == 'BUTTON' || target.tagName == 'SELECT')) {
+		return;
+	}
+	evt.preventDefault();
+	var cancel = document.getElementById('nr_cancel');
+	if (cancel) {
+		cancel.click();
+	}
+}
+
+// the value of a row of radio buttons in the New Rule dialog (Record, Priority)
+function newRuleRadio(name, fallback) {
+	var checked = document.querySelector('#nr_series input[name=' + name + ']:checked');
+	return checked ? checked.value : fallback;
+}
+
+// Save - a rule for the show picked, with the Record, Channel, Teams and Priority
+// choices. The dialog closes when it is added (it stays open with the reason if it isn't).
+function saveNewRule() {
+	var selected = document.getElementById('nr_selected');
+	var save = document.getElementById('nr_save');
+	var padding = newRulePadding();
+	if (!selected || !padding || !save || save.disabled) {
+		return;
+	}
+	newRuleBusy(true);
+	save.textContent = 'Saving...';
+	newRuleMessage('Adding the rule...', false);
+	newRuleAdd(selected.getAttribute('data-seriesid'), selected.getAttribute('data-title'),
+			newRuleRadio('nr_record', 'all'), newRuleChannel(), ruleTeamsChoice('nr').teams.join('|'),
+			newRuleRadio('nr_priority', 'lowest'), padding[0], padding[1]).always(function() {
+		save.textContent = 'Save';
+		newRuleBusy(false);
+	});
+}
+
+// A record button on an airing - recorded once straight away; the dialog stays open
+function addNewRuleOnce(button) {
+	var selected = document.getElementById('nr_selected');
+	var padding = newRulePadding();
+	if (!selected || !padding) {
+		return;
+	}
+	// the airings are rebuilt - keep the Record, Priority and Teams choices
+	var radios = {nr_record: newRuleRadio('nr_record', ''), nr_priority: newRuleRadio('nr_priority', '')};
+	var teams = ruleTeamsChoice('nr');
+	newRuleBusy(true);
+	newRuleMessage('Adding the recording...', false);
+	newRuleAddOnce(selected.getAttribute('data-seriesid'), selected.getAttribute('data-title'),
+		button.getAttribute('data-start'), button.getAttribute('data-channel'), padding[0], padding[1],
+		newRuleChannel()).done(function() {
+		if (document.querySelector('#nr_message .nr_ok')) {
+			newRuleSetRecorded();
+		}
+	}).always(function() {
+		for (var name in radios) {
+			var keep = document.querySelector('#nr_series input[name=' + name + "][value='" + radios[name] + "']");
+			if (keep) {
+				keep.checked = true;
+			}
+		}
+		var checks = document.querySelectorAll('#nr_series .nr_team_check');
+		for (var i = 0; i < checks.length; i++) {
+			checks[i].checked = teams.teams.indexOf(checks[i].value) >= 0;
+		}
+		var all = document.querySelector('#nr_series .nr_team_all');
+		if (all) {
+			all.checked = !teams.only;
+		}
+		filterNewRule();
+		newRuleBusy(false);
+	});
+}
+
+// the channel chosen for the rule ('' = all channels)
+function newRuleChannel() {
+	var select = document.getElementById('nr_channel');
+	return select ? select.value : '';
+}
+
+// Channel or Teams chosen - only the airings on that channel, with those teams, are listed
+function filterNewRule() {
+	var channel = newRuleChannel();
+	var teams = ruleTeamsChoice('nr');
+	var rows = document.querySelectorAll('#nr_series .nr_upcoming_list tbody tr');
+	for (var i = 0; i < rows.length; i++) {
+		var shown = (channel == '' || rows[i].getAttribute('data-channel') == channel) && ruleRowHasTeam(rows[i], teams);
+		rows[i].classList.toggle('nr_hidden', !shown);
+	}
+	newRuleBusy(false);
+}
 
 /* Series tab close button - hide the tab, drop the series and go back to Recordings */
 function closeSeries(evt) {
@@ -924,10 +1221,15 @@ function runSeriesAction(action, selected) {
 	seriesActionPage(currentSeries.key, currentSeries.storageId, action, items.join(','), group);
 }
 
-/* Reload button - refresh the page being shown without changing tabs */
+/* Reload button - refresh the page being shown without changing tabs. The
+ * SiliconDust server cache is cleared first, so the page gets fresh answers
+ * (and the page reloads even if clearing it failed). */
 function reloadPage(evt) {
 	if (activeTab != '') {
-		loadTab(activeTab, true);
+		var tab = activeTab;
+		clearApiCache().always(function() {
+			loadTab(tab, true);
+		});
 	}
 }
 

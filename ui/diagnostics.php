@@ -17,9 +17,13 @@
 		ob_start();
 		$tab = new DVRUI_AjaxResponse();
 
+		// Diagnostics shows what the SiliconDust servers say now - its fetches
+		// fill the cache again for the other pages
+		dvruiApiCacheClear();
+
 		//create output
 		$htmlStr = "";
-		
+
 		//get data - one block per section, matching the sidebar in style/diagnostics.html
 		$htmlStr .= diagSection('system', getSystemDiag());
 		$htmlStr .= diagSection('config', getConfigDiag());

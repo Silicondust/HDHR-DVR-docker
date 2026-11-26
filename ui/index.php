@@ -25,14 +25,15 @@
 
 	/* The PHP functions the page can call (see dvruiCall in hdhomerundvr_ui.js) */
 	$exported = array('getLogFile', 'updateServerConfig', 'openDashboard', 'openDiagnosticsPage',
-		'checkEngineUpdate', 'updateEngine', 'engineVersion', 'openSettingsPage', 'saveSetting');
+		'checkEngineUpdate', 'updateEngine', 'engineVersion', 'openSettingsPage', 'saveSetting', 'clearApiCache');
 	// The Recordings and series pages (and their actions) are only in the full UI -
 	// DVRUI_ENABLE=minimal is the Dashboard and Diagnostics. Functions that aren't
 	// exported can't be called, so they aren't just hidden.
 	$fullUI = dvruiFullUI();
 	if ($fullUI) {
 		array_push($exported, 'openRecordedPage', 'openSeriesPage', 'seriesActionPage',
-			'openRulesPage', 'moveRulePage', 'deleteRulePage', 'openRuleEditor', 'saveRulePage');
+			'openRulesPage', 'moveRulePage', 'deleteRulePage', 'openRuleEditor', 'saveRulePage',
+			'newRuleOpen', 'newRuleSearch', 'newRuleSeries', 'newRuleAdd', 'newRuleAddOnce');
 	}
 
 	/* An ajax call runs its function and exits here */
