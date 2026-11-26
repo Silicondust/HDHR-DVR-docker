@@ -39,11 +39,12 @@
 			return rulesResponse(buildRulesPage(rulesFetch($hdhr), $hdhr), 'Unable to move the rule - invalid rule');
 		}
 		$auth = rulesDeviceAuth($hdhr);
-		$rules = null;
-		if ($auth != '') {
-			$rules = rulesApiPost(array('DeviceAuth' => $auth, 'Cmd' => 'change',
-				'RecordingRuleID' => $ruleId, 'AfterRecordingRuleID' => $afterRuleId));
+		if ($auth == '') {
+			$fetched = rulesFetch($hdhr);
+			return rulesResponse(buildRulesPage($fetched, $hdhr), rulesUnreachable('move the rule', $fetched));
 		}
+		$rules = rulesApiPost(array('DeviceAuth' => $auth, 'Cmd' => 'change',
+			'RecordingRuleID' => $ruleId, 'AfterRecordingRuleID' => $afterRuleId));
 		if (!is_array($rules)) {
 			return rulesResponse(buildRulesPage(rulesFetch($hdhr), $hdhr),
 				'Unable to change the rule priority on the SiliconDust servers');
@@ -77,26 +78,26 @@
 		if (!preg_match('/^\d+$/', $ruleId)) {
 			return rulesResponse(buildRulesPage(rulesFetch($hdhr), $hdhr), 'Unable to delete the rule - invalid rule');
 		}
-		// the title, for the status message
+		// the title, for the message
 		$before = rulesFetch($hdhr);
+		if ($before['Rules'] === null) {
+			// no tuners, or the rules couldn't be read - nothing is sent
+			return rulesResponse(buildRulesPage($before, $hdhr), rulesUnreachable('delete the rule', $before));
+		}
 		$title = null;
 		foreach ((array)$before['Rules'] as $rule) {
 			if (rulesText($rule, 'RecordingRuleID') === $ruleId) {
 				$title = rulesText($rule, 'Title');
 			}
 		}
-		if ($title === null && is_array($before['Rules'])) {
+		if ($title === null) {
 			// e.g. deleted from another page or the HDHomeRun app meanwhile
 			return rulesResponse(buildRulesPage($before, $hdhr), 'That rule has already been deleted');
 		}
-		if ($title === null || $title === '') {
+		if ($title === '') {
 			$title = 'the rule';
 		}
-		$auth = rulesDeviceAuth($hdhr);
-		$result = false;
-		if ($auth != '') {
-			$result = rulesApiPost(array('DeviceAuth' => $auth, 'Cmd' => 'delete', 'RecordingRuleID' => $ruleId));
-		}
+		$result = rulesApiPost(array('DeviceAuth' => rulesDeviceAuth($hdhr), 'Cmd' => 'delete', 'RecordingRuleID' => $ruleId));
 		$fetched = rulesFetch($hdhr);
 		if ($result === false) {
 			return rulesResponse(buildRulesPage($fetched, $hdhr), 'Unable to delete ' . $title . ' on the SiliconDust servers');
@@ -122,6 +123,7 @@
 		$hdhr = new DVRUI_HDHRjson();
 		$ruleId = trim((string)$ruleId);
 		$rule = null;
+		$fetched = array('Rules' => array(), 'Error' => '');
 		if (preg_match('/^\d+$/', $ruleId)) {
 			$fetched = rulesFetch($hdhr);
 			foreach ((array)$fetched['Rules'] as $r) {
@@ -135,7 +137,9 @@
 		ob_end_clean();
 		if ($rule === null) {
 			$tab->setHtml("rules_dialog", '');
-			$tab->message('That rule no longer exists - press Reload to see the rules as they are now', 'error');
+			// no tuners or the rules couldn't be read - or it really has gone
+			$tab->message(($fetched['Rules'] === null) ? rulesUnreachable('open the rule', $fetched)
+				: 'That rule no longer exists - press Reload to see the rules as they are now', 'error');
 			return $tab->getString();
 		}
 		$episodes = rulesUpcoming($hdhr, rulesText($rule, 'SeriesID'));
@@ -170,6 +174,9 @@
 		// the save replaces the whole rule from what is read here, so read it fresh
 		dvruiApiCacheClear();
 		$before = rulesFetch($hdhr);
+		if ($before['Rules'] === null) {
+			return rulesEditorFailed(rulesUnreachable('save', $before));
+		}
 		$rule = null;
 		$afterId = '0';
 		$prevId = '0';
@@ -635,7 +642,8 @@
 		$hdhr = new DVRUI_HDHRjson();
 		$auth = rulesDeviceAuth($hdhr);
 		if ($auth == '') {
-			return newRuleResponse(array('nr_results' => newRuleNote('No HDHomeRun tuners found - the guide is searched for the account the tuners are registered to.', true),
+			return newRuleResponse(array('nr_results' => newRuleNote('No HDHomeRun tuners were found - the guide is searched for the account the tuners are registered to.'
+				. ' Press Reload to look for the tuners again, or see Diagnostics.', true),
 				'nr_series' => ''), '');
 		}
 		$found = getJsonFromApi(DVRUI_Vars::DVRUI_apiurl . 'api/search?DeviceAuth=' . urlencode($auth)
@@ -705,6 +713,10 @@
 			return newRuleResponse(array('nr_series' => newRuleNote('That is not a show in the guide.', true)), '');
 		}
 		$hdhr = new DVRUI_HDHRjson();
+		if (rulesDeviceAuth($hdhr) == '') {
+			// (it would look like nothing is coming up)
+			return newRuleResponse(array('nr_series' => newRuleNote(ucfirst(rulesNoTuners()) . '.', true)), '');
+		}
 		return newRuleResponse(array('nr_series' => newRuleSeriesHtml($hdhr, $seriesId, (string)$title)), '');
 	}
 
@@ -802,7 +814,10 @@
 	 * the lowest.
 	 */
 	function newRuleAdded($hdhr, $params, $seriesId, $title, $failed, $describe, $filter, $close = false, $top = false) {
-		if ($params['DeviceAuth'] == '' || rulesApiPost($params) === false) {
+		if ($params['DeviceAuth'] == '') {
+			return newRuleResponse(array(), $failed . ' - ' . rulesNoTuners(), true);
+		}
+		if (rulesApiPost($params) === false) {
 			return newRuleResponse(array(), $failed . ' on the SiliconDust servers', true);
 		}
 		if ($top) {
@@ -1037,13 +1052,30 @@
 	}
 
 	/*
+	 * Why the rules can't be reached when no tuner was found - the rules (and the
+	 * guide) are SiliconDust's, for the account the tuners are registered to, and
+	 * only a tuner's DeviceAuth gets to them. Discovery runs on every request, so it
+	 * can miss a tuner now and then (e.g. one only found by cloud discovery).
+	 */
+	function rulesNoTuners() {
+		return 'no HDHomeRun tuners were found - the recording rules are kept by SiliconDust for the account'
+			. ' the tuners are registered to, so they can\'t be reached without one. Press Reload to look for'
+			. ' the tuners again, or see Diagnostics';
+	}
+
+	// "Unable to <what> - <the reason>" when the rules couldn't be read ($fetched from rulesFetch)
+	function rulesUnreachable($what, $fetched) {
+		$why = rtrim((string)$fetched['Error'], '.');
+		return 'Unable to ' . $what . ' - ' . ($why != '' ? lcfirst($why) : 'the recording rules could not be read');
+	}
+
+	/*
 	 * Fetch the rules - returns array('Rules' => array or null, 'Error' => message)
 	 */
 	function rulesFetch($hdhr) {
 		$auth = rulesDeviceAuth($hdhr);
 		if ($auth == '') {
-			return array('Rules' => null,
-				'Error' => 'No HDHomeRun tuners found - the recording rules are kept by SiliconDust for the account the tuners are registered to.');
+			return array('Rules' => null, 'Error' => ucfirst(rulesNoTuners()) . '.');
 		}
 		$rules = getJsonFromApi(DVRUI_Vars::DVRUI_apiurl . 'api/recording_rules?DeviceAuth=' . urlencode($auth));
 		if ($rules === null) {
