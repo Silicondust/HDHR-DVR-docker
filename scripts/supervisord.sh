@@ -36,6 +36,8 @@ CMD_CHOWN=/bin/chown
 CMD_SED=/bin/sed
 CMD_ADDUSER=/usr/sbin/useradd
 CMD_ADDGROUP=/usr/sbin/groupadd
+CMD_MODUSER=/usr/sbin/usermod
+CMD_MODGROUP=/usr/sbin/groupmod
 CMD_GETENT=/usr/bin/getent
 
 
@@ -145,26 +147,69 @@ create_dvr_user() {
     echo "INFO: From ${curruser}:${currgrp} to ${PUID}:${PGID}"
     realgrp=${currgrp}
 
-
-    echo "INFO: Creating Group dvr with GID [${PGID}]"
-    ${CMD_ADDGROUP} -og ${PGID} ${DVR_GRP}
-    resp=$?
-    if [ $resp -ne 0 ]; then
-        echo "WARN: Creating group with GID [${PGID}] FAILED - sticking with ${currgrp}"
-        echo "INFO: Response was" $resp
-        cat /etc/group
+    # /etc/passwd and /etc/group live in the container layer, so after a restart
+    # (not a recreate) the dvr user and group from the first start are still there.
+    # Reuse them, and only fix the IDs if they don't match PUID/PGID.
+    grpent=`${CMD_GETENT} group ${DVR_GRP}`
+    if [ -n "${grpent}" ] ; then
+        curgid=`echo "${grpent}" | cut -d: -f3`
+        if [ "${curgid}" = "${PGID}" ] ; then
+            echo "INFO: Group dvr already exists with GID [${PGID}]"
+            realgrp=${DVR_GRP}
+        else
+            echo "INFO: Group dvr exists with GID [${curgid}], changing to [${PGID}]"
+            ${CMD_MODGROUP} -og ${PGID} ${DVR_GRP}
+            resp=$?
+            if [ $resp -ne 0 ]; then
+                echo "WARN: Changing group to GID [${PGID}] FAILED - sticking with GID [${curgid}]"
+                echo "INFO: Response was" $resp
+            else
+                echo "INFO: Success"
+            fi
+            realgrp=${DVR_GRP}
+        fi
     else
-        echo "INFO: Success"
-        realgrp=${DVR_GRP}
+        echo "INFO: Creating Group dvr with GID [${PGID}]"
+        ${CMD_ADDGROUP} -og ${PGID} ${DVR_GRP}
+        resp=$?
+        if [ $resp -ne 0 ]; then
+            echo "WARN: Creating group with GID [${PGID}] FAILED - sticking with ${currgrp}"
+            echo "INFO: Response was" $resp
+            cat /etc/group
+        else
+            echo "INFO: Success"
+            realgrp=${DVR_GRP}
+        fi
     fi
 
-    echo "INFO: Creating User dvr with UID [${PUID}]"
-    ${CMD_ADDUSER} -Mg $realgrp -ou ${PUID} ${DVR_USR}
-    resp=$?
-    if [ $resp -ne 0 ]; then
-        echo "ERROR: Creating user with UID [${PUID}] FAILED"
+    usrent=`${CMD_GETENT} passwd ${DVR_USR}`
+    if [ -n "${usrent}" ] ; then
+        curuid=`echo "${usrent}" | cut -d: -f3`
+        curugid=`echo "${usrent}" | cut -d: -f4`
+        wantgid=`${CMD_GETENT} group ${realgrp} | cut -d: -f3`
+        if [ "${curuid}" = "${PUID}" ] && [ "${curugid}" = "${wantgid}" ] ; then
+            echo "INFO: User dvr already exists with UID [${PUID}]"
+        else
+            echo "INFO: User dvr exists as [${curuid}:${curugid}], changing to [${PUID}] group ${realgrp}"
+            ${CMD_MODUSER} -g ${realgrp} -ou ${PUID} ${DVR_USR}
+            resp=$?
+            if [ $resp -ne 0 ]; then
+                echo "ERROR: Changing user to UID [${PUID}] FAILED"
+                echo "INFO: Response was" $resp
+            else
+                echo "INFO: Success"
+            fi
+        fi
     else
-        echo "INFO: Success"
+        echo "INFO: Creating User dvr with UID [${PUID}]"
+        ${CMD_ADDUSER} -Mg $realgrp -ou ${PUID} ${DVR_USR}
+        resp=$?
+        if [ $resp -ne 0 ]; then
+            echo "ERROR: Creating user with UID [${PUID}] FAILED"
+            echo "INFO: Response was" $resp
+        else
+            echo "INFO: Success"
+        fi
     fi
 }
 
