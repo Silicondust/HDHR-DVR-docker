@@ -144,22 +144,35 @@
 		}
 	}
 
-	/* GET a SiliconDust server URL, from the cache when it is fresh - like getJsonFromUrl */
-	function getJsonFromApi($url) {
-		$results = getJsonFromApis(array(0 => $url), 1);
+	/*
+	 * GET a SiliconDust server URL, from the cache when it is fresh - like getJsonFromUrl.
+	 * $ok (optional) is set to whether a good answer came back (see getJsonFromApis) -
+	 * the API answers "null" when there's nothing (no rules, no search matches), so a
+	 * null result on its own doesn't say whether the request worked.
+	 */
+	function getJsonFromApi($url, &$ok = null) {
+		$results = getJsonFromApis(array(0 => $url), 1, $okKeys);
+		$ok = $okKeys[0];
 		return $results[0];
 	}
 
-	/* GET several SiliconDust server URLs in parallel, each from the cache when it is
-	 * fresh - like getJsonFromUrls (key => url in, key => decoded JSON out) */
-	function getJsonFromApis($urls, $parallel = 8) {
+	/*
+	 * GET several SiliconDust server URLs in parallel, each from the cache when it is
+	 * fresh - like getJsonFromUrls (key => url in, key => decoded JSON out).
+	 * $ok (optional) is set to key => true when a good answer came back (HTTP 2xx and
+	 * valid JSON, "null" included - the same answers the cache keeps), false when the
+	 * request failed (timeout, no connection, an HTTP error or a reply that isn't JSON).
+	 */
+	function getJsonFromApis($urls, $parallel = 8, &$ok = null) {
 		$secs = dvruiApiCacheSecs();
 		$results = array();
+		$good = array();
 		$fetch = array();
 		foreach ($urls as $key => $url) {
 			$cached = dvruiApiCacheRead($url, $secs);
 			if ($cached !== false) {
 				$results[$key] = $cached[0];
+				$good[$key] = true;   // only good answers are cached
 			} else {
 				$fetch[$key] = $url;
 			}
@@ -171,15 +184,33 @@
 			foreach (dvruiFetchUrls($fetch, $parallel) as $key => $answer) {
 				list($code, $json) = $answer;
 				dvruiApiCacheWrite($fetch[$key], $code, $json, $secs);
-				$results[$key] = (is_string($json) && $json !== '') ? json_decode($json, true) : null;
+				list($good[$key], $results[$key]) = dvruiApiAnswer($code, $json);
 			}
 		}
 		// in the order asked for
 		$ordered = array();
+		$ok = array();
 		foreach ($urls as $key => $url) {
-			$ordered[$key] = $results[$key];
+			$ordered[$key] = isset($results[$key]) ? $results[$key] : null;
+			$ok[$key] = !empty($good[$key]);
 		}
 		return $ordered;
+	}
+
+	/*
+	 * A SiliconDust server reply - array(whether it's a good answer, decoded JSON).
+	 * Good is HTTP 2xx with valid JSON ("null" included); anything else is a failure
+	 * and decodes to null.
+	 */
+	function dvruiApiAnswer($code, $json) {
+		if ($code < 200 || $code >= 300 || !is_string($json) || $json === '') {
+			return array(false, null);
+		}
+		$data = json_decode($json, true);
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			return array(false, null);
+		}
+		return array(true, $data);
 	}
 
 	/*

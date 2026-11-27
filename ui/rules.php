@@ -142,9 +142,9 @@
 				: 'That rule no longer exists - press Reload to see the rules as they are now', 'error');
 			return $tab->getString();
 		}
-		$episodes = rulesUpcoming($hdhr, rulesText($rule, 'SeriesID'));
+		$episodes = rulesUpcoming($hdhr, rulesText($rule, 'SeriesID'), $episodesOk);
 		$tab->setHtml("rules_dialog",
-			rulesEditorHtml($rule, $episodes, rulesChannelNames($hdhr, array($rule))));
+			rulesEditorHtml($rule, $episodes, rulesChannelNames($hdhr, array($rule)), $episodesOk));
 		$tab->output($result);
 		return $tab->getString();
 	}
@@ -319,13 +319,24 @@
 		return array_values($list);
 	}
 
-	// The series' episodes coming up in the guide (api/episodes), soonest first
-	function rulesUpcoming($hdhr, $seriesId) {
+	/*
+	 * The series' episodes coming up in the guide (api/episodes), soonest first.
+	 * $ok (optional) is false when they couldn't be fetched - the list is empty then
+	 * too, but that doesn't mean nothing is coming up.
+	 */
+	function rulesUpcoming($hdhr, $seriesId, &$ok = null) {
+		$ok = true;
 		$auth = rulesDeviceAuth($hdhr);
 		if ($auth == '' || $seriesId == '') {
 			return array();
 		}
-		return rulesEpisodesSorted(getJsonFromApi(rulesEpisodesUrl($auth, $seriesId)));
+		return rulesEpisodesSorted(getJsonFromApi(rulesEpisodesUrl($auth, $seriesId), $ok));
+	}
+
+	// shown instead of the upcoming episodes when they couldn't be fetched
+	function rulesUpcomingFailed() {
+		return "<p class='re_none'>Unable to get the upcoming episodes from the SiliconDust servers"
+			. " - close and open this again to retry.</p>";
 	}
 
 	// api/episodes for a series - the same URL everywhere, so the cache is shared
@@ -428,7 +439,7 @@
 		return $start > 0 ? date('D ' . trim(str_replace('Y', '', dvruiDateFormat())) . ' H:i', $start) : '';
 	}
 
-	function rulesEditorHtml($rule, $episodes, $channelNames) {
+	function rulesEditorHtml($rule, $episodes, $channelNames, $episodesOk = true) {
 		$title = rulesText($rule, 'Title');
 		$oneTime = rulesText($rule, 'DateTimeOnly') != '';
 		$ruleChannels = rulesChannelList(rulesText($rule, 'ChannelOnly'));
@@ -539,6 +550,8 @@
 					. "<td class='re_rec'>" . rulesRecordCell(rulesText($episode, 'RecordingRuleExt')) . "</td></tr>";
 			}
 			$h .= "</tbody></table></div>";
+		} elseif (!$episodesOk) {
+			$h .= rulesUpcomingFailed();
 		} else {
 			$h .= "<p class='re_none'>There are no upcoming episodes of this show in the guide.</p>";
 		}
@@ -647,7 +660,7 @@
 				'nr_series' => ''), '');
 		}
 		$found = getJsonFromApi(DVRUI_Vars::DVRUI_apiurl . 'api/search?DeviceAuth=' . urlencode($auth)
-			. '&Search=' . urlencode($term));
+			. '&Search=' . urlencode($term), $ok);
 		$series = array();
 		foreach (is_array($found) ? $found : array() as $s) {
 			if (is_array($s) && rulesText($s, 'SeriesID') != '') {
@@ -655,12 +668,12 @@
 			}
 		}
 		if (count($series) == 0) {
-			// the API answers "null" when nothing matches
-			$text = ($found === null || is_array($found))
-				? 'Nothing in the guide matches “' . $term . '”.'
-				: 'Unable to search the guide on the SiliconDust servers.';
-			return newRuleResponse(array('nr_results' => newRuleNote($text, !($found === null || is_array($found))),
-				'nr_series' => ''), '');
+			// the API answers "null" when nothing matches - a failed request isn't "no match"
+			$failed = !$ok || ($found !== null && !is_array($found));
+			$text = $failed
+				? 'Unable to search the guide on the SiliconDust servers - try again.'
+				: 'Nothing in the guide matches “' . $term . '”.';
+			return newRuleResponse(array('nr_results' => newRuleNote($text, $failed), 'nr_series' => ''), '');
 		}
 
 		// how many times each airs - one api/episodes each, cached for when one is picked
@@ -668,17 +681,18 @@
 		foreach ($series as $id => $s) {
 			$urls[$id] = rulesEpisodesUrl($auth, $id);
 		}
-		$counts = array();
-		foreach (getJsonFromApis($urls, 12) as $id => $episodes) {
-			$counts[$id] = is_array($episodes) ? count(array_filter($episodes, 'is_array')) : 0;
+		$counts = array();   // null when the episodes couldn't be fetched
+		foreach (getJsonFromApis($urls, 12, $ok) as $id => $episodes) {
+			$counts[$id] = !$ok[$id] ? null : (is_array($episodes) ? count(array_filter($episodes, 'is_array')) : 0);
 		}
 		$ruled = newRuleSeriesRules(rulesFetch($hdhr));
 
-		// those airing first, in the order SiliconDust gave them
+		// those airing (or not known) first, in the order SiliconDust gave them
+		$airs = function($id) use ($counts) { return $counts[$id] === null || $counts[$id] > 0; };
 		$order = array_keys($series);
-		usort($order, function($a, $b) use ($counts, $order) {
-			if (($counts[$a] > 0) != ($counts[$b] > 0)) {
-				return ($counts[$a] > 0) ? -1 : 1;
+		usort($order, function($a, $b) use ($airs, $order) {
+			if ($airs($a) != $airs($b)) {
+				return $airs($a) ? -1 : 1;
 			}
 			return array_search($a, $order) - array_search($b, $order);
 		});
@@ -697,9 +711,15 @@
 			if (isset($ruled[$id])) {
 				$h .= "<span class='rule_opt rule_opt_limit nr_has_rule'>Has a rule</span>";
 			}
-			$h .= "<span class='nr_item_count" . ($counts[$id] == 0 ? ' re_dim' : '') . "'>"
-				. ($counts[$id] == 0 ? 'nothing upcoming' : $counts[$id] . ' airing' . ($counts[$id] == 1 ? '' : 's'))
-				. "</span></button>";
+			if ($counts[$id] === null) {
+				$countText = "couldn't check airings";
+			} elseif ($counts[$id] == 0) {
+				$countText = 'nothing upcoming';
+			} else {
+				$countText = $counts[$id] . ' airing' . ($counts[$id] == 1 ? '' : 's');
+			}
+			$h .= "<span class='nr_item_count" . ($counts[$id] === 0 || $counts[$id] === null ? ' re_dim' : '') . "'>"
+				. $countText . "</span></button>";
 		}
 		$h .= "</div>";
 		return newRuleResponse(array('nr_results' => $h, 'nr_series' => ''), '');
@@ -842,7 +862,7 @@
 
 	function newRuleSeriesHtml($hdhr, $seriesId, $title, $channel = '') {
 		$channel = (string)$channel;
-		$episodes = rulesUpcoming($hdhr, $seriesId);
+		$episodes = rulesUpcoming($hdhr, $seriesId, $episodesOk);
 		$image = '';
 		foreach ($episodes as $episode) {
 			if ($title == '') {
@@ -962,6 +982,8 @@
 					. $record . "</button></td></tr>";
 			}
 			$h .= "</tbody></table></div>";
+		} elseif (!$episodesOk) {
+			$h .= rulesUpcomingFailed();
 		} else {
 			$h .= "<p class='re_none'>There are no upcoming airings of this show in the guide - a rule records it when it comes back.</p>";
 		}
@@ -1077,13 +1099,15 @@
 		if ($auth == '') {
 			return array('Rules' => null, 'Error' => ucfirst(rulesNoTuners()) . '.');
 		}
-		$rules = getJsonFromApi(DVRUI_Vars::DVRUI_apiurl . 'api/recording_rules?DeviceAuth=' . urlencode($auth));
+		$rules = getJsonFromApi(DVRUI_Vars::DVRUI_apiurl . 'api/recording_rules?DeviceAuth=' . urlencode($auth), $ok);
+		// a failed request is an error, not "no rules" - otherwise the page would say
+		// there are none, and delete/save would act on an empty list
+		if (!$ok || ($rules !== null && !is_array($rules))) {
+			return array('Rules' => null, 'Error' => 'Unable to get the recording rules from the SiliconDust servers.');
+		}
 		if ($rules === null) {
 			// the API answers "null" when there are no rules
 			return array('Rules' => array(), 'Error' => '');
-		}
-		if (!is_array($rules)) {
-			return array('Rules' => null, 'Error' => 'Unable to get the recording rules from the SiliconDust servers.');
 		}
 		return array('Rules' => array_values($rules), 'Error' => '');
 	}

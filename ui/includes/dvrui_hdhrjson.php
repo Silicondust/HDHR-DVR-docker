@@ -242,9 +242,9 @@ class DVRUI_HDHRjson {
 	 * Cloud discovery - lists devices that share this network's public IP
 	 */
 	private function discover_cloud() {
-		$hdhr_data = getJsonFromApi(DVRUI_Vars::DVRUI_apiurl . 'discover');
+		$hdhr_data = getJsonFromApi(DVRUI_Vars::DVRUI_apiurl . 'discover', $ok);
 		if (!is_array($hdhr_data)) {
-			$this->log('Cloud discovery returned no data');
+			$this->log($ok ? 'Cloud discovery returned no data' : 'Cloud discovery failed - the SiliconDust servers did not answer');
 			return;
 		}
 		foreach ($hdhr_data as $hdhr) {
