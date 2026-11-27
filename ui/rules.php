@@ -1187,11 +1187,12 @@
 			. (count($rules) == 1 ? '' : 's') . "</span> &middot; highest priority first"
 			. " <span id='rules_hint'>&middot; drag a rule up or down to change its priority</span></span>"
 			. $newButton . "</div>";
-		$htmlStr .= "<div id='rules_list'>";
+		$entries = '';
 		foreach ($rules as $pos => $rule) {
-			$htmlStr .= rulesEntry($rule, $pos + 1, $channelNames);
+			$entries .= rulesEntry($rule, $pos + 1, $channelNames);
 		}
-		return $htmlStr . "</div>";
+		// the rules scroll up and down with arrows instead of a scrollbar
+		return $htmlStr . dvruiVScroller('rules_scroller', "id='rules_list'", '.rule_entry', $entries);
 	}
 
 	// One rule: priority position, image, title, synopsis and its options

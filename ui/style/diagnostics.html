@@ -25,8 +25,11 @@
 			<button type="button" class="diag_nav" data-section="recordings" title="Recordings" aria-label="Recordings" onclick="showDiagSection('recordings')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg><span class="diag_nav_label">Recordings</span></button>
 			<button type="button" class="diag_nav diag_nav_all active" data-section="all" title="All sections" aria-label="All sections" onclick="showDiagSection('all')">ALL</button>
 		</nav>
-		<div id="diagnostics_pane">
-			<div id='diagnostics_box'><!-- dvrui_diagnostics_data --></div>
+		<!-- the pane scrolls with arrows instead of a scrollbar - see .vscroller / scrollPage() -->
+		<div id="diagnostics_pane" class="vscroller">
+			<div class="vscroll_arrow up" hidden><button type="button" aria-label="Scroll up" title="Scroll up" onclick="scrollPage(this, -1)"><span>&#x276E;</span></button></div>
+			<div id='diagnostics_box' class="vscroll_list" onscroll="updateScrollArrows(this)"><!-- dvrui_diagnostics_data --></div>
+			<div class="vscroll_arrow down" hidden><button type="button" aria-label="Scroll down" title="Scroll down" onclick="scrollPage(this, 1)"><span>&#x276F;</span></button></div>
 			<button type="button" id="diagnostics_copy" class="copy_overlay" title="Copy the text shown to the clipboard" aria-label="Copy the text shown to the clipboard" onclick="copyDiagnostics()"><svg class="copy_icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5"/></svg><svg class="copied_icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button>
 		</div>
 	</div>

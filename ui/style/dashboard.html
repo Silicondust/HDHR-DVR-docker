@@ -5,7 +5,13 @@
   Copyright (c) 2026 Silicondust USA Inc.
   Released under the MIT License - see LICENSE
 -->
-<div id="dashboard_content">
-	<div id='dashboard_box'><!-- dvrui_dashboard_data --></div>
-	<br class="clearfix" />
+<!-- the page scrolls with arrows instead of a scrollbar (see .vscroller / scrollPage());
+     the log sections inside keep their own scrollbars -->
+<div id="dashboard_content" class="vscroller">
+	<div class="vscroll_arrow up" hidden><button type="button" aria-label="Scroll up" title="Scroll up" onclick="scrollPage(this, -1)"><span>&#x276E;</span></button></div>
+	<div class="vscroll_list" onscroll="updateScrollArrows(this)">
+		<div id='dashboard_box'><!-- dvrui_dashboard_data --></div>
+		<br class="clearfix" />
+	</div>
+	<div class="vscroll_arrow down" hidden><button type="button" aria-label="Scroll down" title="Scroll down" onclick="scrollPage(this, 1)"><span>&#x276F;</span></button></div>
 </div>

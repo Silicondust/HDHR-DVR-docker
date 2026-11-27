@@ -211,9 +211,6 @@ a.reload_page {
   --engine-lines: 1;
   display: flex;
   overflow-x: auto;
-  scroll-behavior: smooth;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: 2.5px;   /* snap to the card's margin, so the first card sits at 0 */
   scrollbar-width: none;
   padding-bottom: 10px;   /* room for the cards' shadow */
 }
@@ -222,7 +219,6 @@ a.reload_page {
 }
 .recorded_latest_list .recorded_entry {
   flex: 0 0 auto;
-  scroll-snap-align: start;
 }
 .recorded_latest_arrow {
   position: absolute;
@@ -1584,7 +1580,16 @@ html {
   min-height: 0;
   overflow-y: auto;
 }
-/* Recordings - filter bar and messages stay, the cards scroll */
+/* Dashboard - the whole page scrolls with arrows (see .vscroller); the log sections
+ * inside keep their own scrollbars */
+#page > #dashboard_page {
+  overflow: hidden;
+}
+#dashboard_content {
+  height: 100%;
+}
+/* Recordings - the whole page (Latest recordings, filters, cards) scrolls together
+ * inside #recorded_scroller; messages shown instead of it (no engines) stay put */
 #page > #recorded_page {
   overflow: hidden;
 }
@@ -1599,14 +1604,76 @@ html {
   display: flex;
   flex-direction: column;
 }
-#recorded_box > #recorded_filter,
-#recorded_box > #recorded_messages {
-  flex: none;
-}
-#recorded_box > #recorded_list {
+#recorded_box > #recorded_scroller {
   flex: 1;
   min-height: 0;
+}
+/* Lists that scroll up and down with no scrollbar - arrow overlays at the top and
+ * bottom page through them (dvruiVScroller, scrollPage/updateScrollArrows).
+ * The page layout sizes the .vscroller; the list fills it. */
+.vscroller {
+  position: relative;
+}
+.vscroller > .vscroll_list {
+  height: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+.vscroller > .vscroll_list::-webkit-scrollbar {
+  display: none;
+}
+/* a fade across the full width that clicks (and drags) pass through, with a button in the middle */
+.vscroll_arrow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.vscroll_arrow[hidden] {
+  display: none;
+}
+.vscroll_arrow.up {
+  top: 0;
+  align-items: flex-start;
+  background: linear-gradient(to bottom, rgba(20, 28, 40, 0.9), rgba(20, 28, 40, 0));
+}
+.vscroll_arrow.down {
+  bottom: 0;
+  align-items: flex-end;
+  background: linear-gradient(to top, rgba(20, 28, 40, 0.9), rgba(20, 28, 40, 0));
+}
+.vscroll_arrow button {
+  pointer-events: auto;
+  width: 96px;
+  height: 30px;
+  border: none;
+  padding: 0;
+  background: rgba(20, 28, 40, 0.85);
+  color: white;
+  font-size: 22px;
+  line-height: 30px;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.vscroll_arrow.up button {
+  border-radius: 0 0 6px 6px;
+}
+.vscroll_arrow.down button {
+  border-radius: 6px 6px 0 0;
+}
+.vscroll_arrow button span {
+  display: inline-block;
+  transform: rotate(90deg);   /* the same chevrons as the side arrows, turned */
+}
+.vscroll_arrow button:hover,
+.vscroll_arrow button:focus-visible {
+  opacity: 1;
+  color: #8fb3e0;
 }
 /* Series page - header, seasons and command bar stay, the episodes scroll */
 #page > #series_page {
@@ -1949,12 +2016,13 @@ html {
 #diagnostics_main[data-show="recordings"] .diag_section[data-section="recordings"] {
   display: block;
 }
-/* copy button over the top right of the pane (clear of its scrollbar) - stays put
- * while the text scrolls */
+/* copy button over the top right of the pane - stays put while the text scrolls,
+ * above the pane's scroll arrow */
 .copy_overlay {
   position: absolute;
+  z-index: 3;
   top: 6px;
-  right: 22px;
+  right: 8px;
   width: 28px;
   height: 28px;
   padding: 0;
@@ -2000,9 +2068,25 @@ html {
 #diagnostics_content:has(#diagnostics_box:empty) .copy_overlay {
   display: none;
 }
-/* Settings - title strip, then a group of switches per area */
+/* Settings - title strip, then a group of switches per area; window-sized, the
+ * title strip stays and the settings scroll (with arrows - see .vscroller) */
 #settings_page {
   color: #DDD;
+}
+#page > #settings_page {
+  overflow: hidden;
+}
+#settings_content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+#settings_content > #settings_bar {
+  flex: none;
+}
+#settings_content > #settings_scroller {
+  flex: 1;
+  min-height: 0;
 }
 #settings_bar {
   padding: 4px 10px;
@@ -2841,9 +2925,8 @@ h4.nr_series_title {
 #rules_box > #rules_header {
   flex: none;
 }
-#rules_box > #rules_list {
+/* the rules scroll with arrows instead of a scrollbar (see .vscroller) */
+#rules_box > #rules_scroller {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  scrollbar-color: #5577a0 #172131;
 }

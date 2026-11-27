@@ -9,5 +9,12 @@
 	<div id="settings_bar">
 		<span class="settings_title">DVR Manager UI Settings</span>
 	</div>
-	<div id='settings_box'></div>
+	<!-- the settings scroll with arrows instead of a scrollbar - see .vscroller / scrollPage() -->
+	<div id="settings_scroller" class="vscroller">
+		<div class="vscroll_arrow up" hidden><button type="button" aria-label="Scroll up" title="Scroll up" onclick="scrollPage(this, -1)"><span>&#x276E;</span></button></div>
+		<div class="vscroll_list" onscroll="updateScrollArrows(this)">
+			<div id='settings_box'></div>
+		</div>
+		<div class="vscroll_arrow down" hidden><button type="button" aria-label="Scroll down" title="Scroll down" onclick="scrollPage(this, 1)"><span>&#x276F;</span></button></div>
+	</div>
 </div>

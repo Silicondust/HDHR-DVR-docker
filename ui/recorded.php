@@ -236,10 +236,13 @@
 			. "<select id='recorded_group_select' class='recorded_group_select' onchange='filterRecorded()'>" . $groupOptions . "</select>"
 			. "<span id='recorded_count'>" . $total . " series</span>"
 			. "</div>";
-		return recordedLatestList($allSeries, recordedRecentEpisodes($recent, 48 * 3600, 10))
+		// the whole page - Latest recordings, the filters and the series cards - scrolls
+		// up and down together, with arrows instead of a scrollbar
+		return dvruiVScroller('recorded_scroller', "id='recorded_scroll'", '.recorded_entry',
+			recordedLatestList($allSeries, recordedRecentEpisodes($recent, 48 * 3600, 10))
 			. $filter . "<div id='recorded_messages'>" . $messages . "</div>"
 			. "<div id='recorded_list' data-engine-lines='" . $engineLines . "' style='--engine-lines: " . $engineLines . "'>"
-			. $sections . "</div>";
+			. $sections . "</div>");
 	}
 
 	// Sections on the Recorded page, in display order

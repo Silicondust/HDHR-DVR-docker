@@ -21,6 +21,28 @@
 		return $cache[$name];
 	}
 
+	/*
+	 * A list that scrolls up and down with no scrollbar - arrow overlays at the top
+	 * and bottom page through it, each shown only when there's more that way
+	 * (scrollPage/updateScrollArrows in hdhomerundvr_ui.js, .vscroller in style.css).
+	 * $scrollerId names the wrapper (for the page layout), $listAttrs are the list's
+	 * own attributes (e.g. its id), $item is a CSS selector for one entry - a page
+	 * keeps one entry from before in view.
+	 */
+	function dvruiVScroller($scrollerId, $listAttrs, $item, $content) {
+		$arrow = function($dir, $label, $glyph) {
+			return "<div class='vscroll_arrow " . $dir . "' hidden><button type='button' aria-label='" . $label . "'"
+				. " title='" . $label . "' onclick='scrollPage(this, " . ($dir == 'up' ? -1 : 1) . ")'>"
+				. "<span>" . $glyph . "</span></button></div>";
+		};
+		return "<div id='" . $scrollerId . "' class='vscroller'>"
+			. $arrow('up', 'Scroll up', '&#x276E;')
+			. "<div class='vscroll_list' " . $listAttrs . " data-item='" . htmlspecialchars($item, ENT_QUOTES) . "'"
+			. " onscroll='updateScrollArrows(this)'>" . $content . "</div>"
+			. $arrow('down', 'Scroll down', '&#x276F;')
+			. "</div>";
+	}
+
 	function getJsonFromUrl($url) {
 		if (in_array('curl', get_loaded_extensions())){
 			$ch = curl_init();

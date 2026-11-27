@@ -299,8 +299,6 @@ function loadTab(tabname, force) {
 			recordedLoaded = true;
 			openRecordedPage();
 		}
-		// the row has no width while the tab is hidden - check the arrows once it's shown
-		requestAnimationFrame(updateLatestArrows);
 	}
 	if (tabname == 'series_page') {
 		// loaded by openSeries - Reload fetches the same series again
@@ -324,6 +322,8 @@ function loadTab(tabname, force) {
 	if (tabname == 'settings_page') {
 		openSettingsPage();
 	}
+	// a scrolling list has no size while its tab is hidden - check the arrows once it's shown
+	requestAnimationFrame(updateAllScrollArrows);
 }
 
 /* Settings - a switch or number saves as soon as it is changed (the page comes back
@@ -361,6 +361,7 @@ function showDiagSection(section)
 	var box = document.getElementById('diagnostics_box');
 	if (box) {
 		box.scrollTop = 0;
+		updateScrollArrows(box);   // a different section - more or less to scroll
 	}
 }
 
@@ -381,7 +382,7 @@ function diagnosticsText(all)
 	if (all) {
 		main.setAttribute('data-show', shown);
 	}
-	text = text.replace(/ /g, ' ').replace(/\s+$/, '');
+	text = text.replace(/Â /g, ' ').replace(/\s+$/, '');
 	return text.replace(/\s/g, '') == '' ? '' : text;
 }
 
@@ -530,6 +531,7 @@ function filterRecorded() {
 		count.innerHTML = shown + ' series';
 	}
 	sortRecorded();
+	updateAllScrollArrows();   // the list may now be shorter or longer
 }
 
 /* Most recently recorded first within each section, using the date each card
@@ -582,33 +584,63 @@ function updateRecordedCard(card, engine) {
 	}
 }
 
-/* Latest recordings row - the arrow overlays scroll it by about a screen of cards
- * (one card is kept in view), and each is shown only when there's more that way */
+/* Latest recordings row - the arrow overlays scroll it by whole cards, about a screen
+ * of them (one card is kept in view), so the row stays lined up on a card edge;
+ * each arrow is shown only when there's more that way */
 function scrollLatest(dir) {
 	var list = document.querySelector('.recorded_latest_list');
 	if (!list) {
 		return;
 	}
 	var card = list.querySelector('.recorded_entry');
-	var step = card ? card.offsetWidth + 5 : 245;
-	list.scrollBy({left: dir * Math.max(step, list.clientWidth - step), behavior: 'smooth'});
+	var step = card ? card.offsetWidth + 5 : 245;   // a card and its margins
+	var cards = Math.max(1, Math.floor(list.clientWidth / step) - 1);
+	// from the card edge nearest the current position, in case the row was dragged off one
+	var target = Math.round(list.scrollLeft / step + dir * cards) * step;
+	list.scrollBy({left: target - list.scrollLeft, behavior: 'smooth'});
 }
 
+/* Show each Latest recordings arrow only when there's more that way
+ * (a few pixels of slack - snapping can leave the row a fraction off either end) */
 function updateLatestArrows() {
-	var list = document.querySelector('.recorded_latest_list');
-	if (!list) {
-		return;
+	var row = document.querySelector('.recorded_latest_list');
+	if (row) {
+		var max = row.scrollWidth - row.clientWidth;
+		row.parentNode.querySelector('.recorded_latest_arrow.left').hidden = !(row.scrollLeft > 5);
+		row.parentNode.querySelector('.recorded_latest_arrow.right').hidden = !(max > 5 && row.scrollLeft < max - 5);
 	}
-	var scroller = list.parentNode;
-	var left = scroller.querySelector('.recorded_latest_arrow.left');
-	var right = scroller.querySelector('.recorded_latest_arrow.right');
-	var max = list.scrollWidth - list.clientWidth;
-	// a few pixels of slack - snapping can leave the row a fraction off either end
-	left.hidden = !(list.scrollLeft > 5);
-	right.hidden = !(max > 5 && list.scrollLeft < max - 5);
 }
 
-window.addEventListener('resize', updateLatestArrows);
+/* Lists that scroll up and down with arrows instead of a scrollbar (dvruiVScroller
+ * in dvrui_common.php, or set up in a page template) - an arrow scrolls by about a
+ * screen, keeping one entry (the list's data-item) from before in view, or a few
+ * lines of text when there's no data-item - never more than a quarter of the view */
+function scrollPage(button, dir) {
+	var list = button.closest('.vscroller').querySelector('.vscroll_list');
+	var selector = list.getAttribute('data-item');
+	var item = selector ? list.querySelector(selector) : null;
+	var keep = Math.min(item ? item.offsetHeight + 10 : 40, list.clientHeight / 4);
+	list.scrollBy({top: dir * (list.clientHeight - keep), behavior: 'smooth'});
+}
+
+// each arrow is shown only when there's more to scroll to that way
+function updateScrollArrows(list) {
+	var scroller = list.closest('.vscroller');
+	var max = list.scrollHeight - list.clientHeight;
+	scroller.querySelector('.vscroll_arrow.up').hidden = !(list.scrollTop > 5);
+	scroller.querySelector('.vscroll_arrow.down').hidden = !(max > 5 && list.scrollTop < max - 5);
+}
+
+// after anything that can change what fits - new content, a resize, a tab shown, a filter
+function updateAllScrollArrows() {
+	updateLatestArrows();
+	var lists = document.querySelectorAll('.vscroll_list');
+	for (var i = 0; i < lists.length; i++) {
+		updateScrollArrows(lists[i]);
+	}
+}
+
+window.addEventListener('resize', updateAllScrollArrows);
 
 /* Dashboard engine card image - open the Recordings page filtered to that engine.
  * If the series aren't loaded yet (or a load is in flight) the filter is applied
@@ -668,7 +700,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	var box = document.getElementById('recorded_box');
 	if (box && window.MutationObserver) {
 		new MutationObserver(function() {
-			updateLatestArrows();   // new Latest recordings row - show its arrows
+			updateAllScrollArrows();   // new content - show the arrows it needs
 			if (pendingRecordedEngine !== null && document.getElementById('recorded_engine_select')) {
 				var id = pendingRecordedEngine;
 				pendingRecordedEngine = null;
@@ -676,6 +708,15 @@ document.addEventListener('DOMContentLoaded', function() {
 			}
 		}).observe(box, {childList: true});
 	}
+	// pages whose content is replaced (the Dashboard's refreshes, Rules after a move,
+	// delete or new rule, each load of Diagnostics and Settings) - check the scroll
+	// arrows for the new content
+	['dashboard_box', 'rules_box', 'diagnostics_box', 'settings_box'].forEach(function(id) {
+		var el = document.getElementById(id);
+		if (el && window.MutationObserver) {
+			new MutationObserver(updateAllScrollArrows).observe(el, {childList: true});
+		}
+	});
 });
 
 /* Recordings card image - open the series page (menu tab titled with the series).
