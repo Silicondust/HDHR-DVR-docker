@@ -299,6 +299,8 @@ function loadTab(tabname, force) {
 			recordedLoaded = true;
 			openRecordedPage();
 		}
+		// the row has no width while the tab is hidden - check the arrows once it's shown
+		requestAnimationFrame(updateLatestArrows);
 	}
 	if (tabname == 'series_page') {
 		// loaded by openSeries - Reload fetches the same series again
@@ -580,6 +582,34 @@ function updateRecordedCard(card, engine) {
 	}
 }
 
+/* Latest recordings row - the arrow overlays scroll it by about a screen of cards
+ * (one card is kept in view), and each is shown only when there's more that way */
+function scrollLatest(dir) {
+	var list = document.querySelector('.recorded_latest_list');
+	if (!list) {
+		return;
+	}
+	var card = list.querySelector('.recorded_entry');
+	var step = card ? card.offsetWidth + 5 : 245;
+	list.scrollBy({left: dir * Math.max(step, list.clientWidth - step), behavior: 'smooth'});
+}
+
+function updateLatestArrows() {
+	var list = document.querySelector('.recorded_latest_list');
+	if (!list) {
+		return;
+	}
+	var scroller = list.parentNode;
+	var left = scroller.querySelector('.recorded_latest_arrow.left');
+	var right = scroller.querySelector('.recorded_latest_arrow.right');
+	var max = list.scrollWidth - list.clientWidth;
+	// a few pixels of slack - snapping can leave the row a fraction off either end
+	left.hidden = !(list.scrollLeft > 5);
+	right.hidden = !(max > 5 && list.scrollLeft < max - 5);
+}
+
+window.addEventListener('resize', updateLatestArrows);
+
 /* Dashboard engine card image - open the Recordings page filtered to that engine.
  * If the series aren't loaded yet (or a load is in flight) the filter is applied
  * once the page content arrives. */
@@ -638,6 +668,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	var box = document.getElementById('recorded_box');
 	if (box && window.MutationObserver) {
 		new MutationObserver(function() {
+			updateLatestArrows();   // new Latest recordings row - show its arrows
 			if (pendingRecordedEngine !== null && document.getElementById('recorded_engine_select')) {
 				var id = pendingRecordedEngine;
 				pendingRecordedEngine = null;
@@ -648,7 +679,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /* Recordings card image - open the series page (menu tab titled with the series).
- * Limited to the engine the Recordings page is filtered to, if any. */
+ * Limited to the engine the Recordings page is filtered to, if any - except for the
+ * Latest recordings cards, which ignore the filters. */
 var currentSeries = null;
 
 function openSeries(evt, img) {
@@ -662,7 +694,7 @@ function openSeries(evt, img) {
 	}
 	var storageId = '';
 	var sel = document.getElementById('recorded_engine_select');
-	if (sel && sel.value != 'all') {
+	if (!card.classList.contains('recorded_latest') && sel && sel.value != 'all') {
 		storageId = sel.options[sel.selectedIndex].getAttribute('data-storageid') || '';
 	}
 	var title = card.getElementsByClassName('recorded_title')[0].textContent;

@@ -137,11 +137,13 @@
 				}
 			}
 		}
+		$recent = array();   // every recording, for the Latest recordings cards
 		foreach (getJsonFromUrls($episodeURLs) as $fetchKey => $episodes) {
 			list($key, $engineKey) = explode('|', $fetchKey, 2);
 			list($count, $latest) = recordedEpisodeStats($episodes);
 			$allSeries[$key]['Engines'][$engineKey]['Count'] = $count;
 			$allSeries[$key]['Engines'][$engineKey]['Latest'] = $latest;
+			recordedCollectEpisodes($recent, $key, $episodes);
 		}
 
 		// Most recently recorded first (latest across all engines), then by title
@@ -234,7 +236,8 @@
 			. "<select id='recorded_group_select' class='recorded_group_select' onchange='filterRecorded()'>" . $groupOptions . "</select>"
 			. "<span id='recorded_count'>" . $total . " series</span>"
 			. "</div>";
-		return $filter . "<div id='recorded_messages'>" . $messages . "</div>"
+		return recordedLatestList($allSeries, recordedRecentEpisodes($recent, 48 * 3600, 10))
+			. $filter . "<div id='recorded_messages'>" . $messages . "</div>"
 			. "<div id='recorded_list' data-engine-lines='" . $engineLines . "' style='--engine-lines: " . $engineLines . "'>"
 			. $sections . "</div>";
 	}
@@ -258,6 +261,99 @@
 	}
 
 	/*
+	 * Add an engine's recordings of one series to the Latest recordings candidates:
+	 * series key, recording time (RecordStartTime, else StartTime) and the episode.
+	 * The same recording on two engines (same series, episode and time) is kept once.
+	 */
+	function recordedCollectEpisodes(&$recent, $seriesKey, $episodes) {
+		if (!is_array($episodes)) {
+			return;
+		}
+		foreach ($episodes as $episode) {
+			if (!is_array($episode)) {
+				continue;
+			}
+			$time = (int)recordedField($episode, array('RecordStartTime', 'StartTime'), '0');
+			if ($time <= 0) {
+				continue;
+			}
+			$id = $seriesKey . '|' . $time . '|' . recordedField($episode, array('EpisodeNumber', 'EpisodeTitle', 'ProgramID'), '');
+			$recent[$id] = array('Key' => $seriesKey, 'Time' => $time, 'Episode' => $episode);
+		}
+	}
+
+	/*
+	 * The recordings to show, newest first: everything recorded in the last $window
+	 * seconds, or the latest $minimum if that's fewer
+	 */
+	function recordedRecentEpisodes($recent, $window, $minimum, $now = null) {
+		$recent = array_values($recent);
+		usort($recent, function($a, $b) { return $b['Time'] <=> $a['Time']; });
+		$since = (($now === null) ? time() : $now) - $window;
+		$shown = array();
+		foreach ($recent as $i => $item) {
+			if ($i >= $minimum && $item['Time'] < $since) {
+				break;
+			}
+			$shown[] = $item;
+		}
+		return $shown;
+	}
+
+	/*
+	 * Latest recordings, above the filters: one card per recording (see
+	 * recordedRecentEpisodes), from all engines and categories, so the filters don't
+	 * change it. Cards like the ones below: the series image and title, the episode,
+	 * and when it was recorded. Clicking the image opens the series page.
+	 * The cards are outside the category sections, so filterRecorded/sortRecorded
+	 * leave them alone.
+	 */
+	function recordedLatestList($allSeries, $recent) {
+		$cards = '';
+		foreach ($recent as $item) {
+			$seriesKey = $item['Key'];
+			$series = $allSeries[$seriesKey];
+			$episode = $item['Episode'];
+			$number = recordedField($episode, array('EpisodeNumber'), '');
+			$name = recordedField($episode, array('EpisodeTitle'), '');
+			if (strcasecmp($name, $series['Title']) == 0) {
+				$name = '';   // movies and specials repeat the series title
+			}
+			$episodeText = trim(($number != '' ? "<span class='recorded_latest_number'>" . htmlspecialchars($number) . "</span> " : '')
+				. htmlspecialchars($name));
+			$image = ($series['Image'] != '') ? $series['Image'] : './images/no-preview.png';
+			$cards .= "<div class='recorded_entry recorded_latest' data-seriesid='" . htmlspecialchars($seriesKey, ENT_QUOTES) . "'>"
+				. "<div class='recorded_img_cnt'>"
+				. "<img src='" . htmlspecialchars($image, ENT_QUOTES) . "'"
+				. " class='recorded_img" . (($series['Image'] != '') ? '' : ' no_preview') . "' loading='lazy'"
+				. " title='Show the recordings of this series' onclick='openSeries(event, this)'"
+				. " onerror=\"this.onerror=null;this.className+=' no_preview';this.src='./images/no-preview.png';\"/>"
+				. "</div>"
+				. "<div class='recorded_info'>"
+				. "<h4 class='recorded_title'>" . htmlspecialchars($series['Title']) . "</h4>"
+				// kept (hidden) when there's no episode so every card is the same size
+				. "<p class='recorded_last'" . ($episodeText != '' ? '' : " style='visibility:hidden'") . ">"
+				. ($episodeText != '' ? $episodeText : '&nbsp;') . "</p>"
+				. "<p class='recorded_latest_when'>Recorded: " . htmlspecialchars(recordedDayDate($item['Time'])) . "</p>"
+				. "</div></div>";
+		}
+		if ($cards == '') {
+			return '';
+		}
+		// one row that scrolls sideways - the arrows on each side page through it and
+		// are only shown when there's more that way (see scrollLatest/updateLatestArrows)
+		return "<div id='recorded_latest'>"
+			. "<h3 class='recorded_group_title'>Latest recordings</h3>"
+			. "<div class='recorded_latest_scroller'>"
+			. "<button type='button' class='recorded_latest_arrow left' aria-label='Earlier recordings' title='Earlier recordings'"
+			. " onclick='scrollLatest(-1)' hidden>&#x276E;</button>"
+			. "<div class='recorded_latest_list' onscroll='updateLatestArrows()'>" . $cards . "</div>"
+			. "<button type='button' class='recorded_latest_arrow right' aria-label='More recordings' title='More recordings'"
+			. " onclick='scrollLatest(1)' hidden>&#x276F;</button>"
+			. "</div></div>";
+	}
+
+	/*
 	 * Number of recordings in an engine's episode list, and the most recent
 	 * recording time (RecordStartTime, else StartTime) as a unix timestamp
 	 */
@@ -276,6 +372,22 @@
 			$latest = max($latest, $time);
 		}
 		return array($count, $latest);
+	}
+
+	/*
+	 * Day, date and time in the UI timezone: "Tue 24 Nov 21:00" ("Tue Nov 24 21:00"
+	 * for US timezones), with the year added when it isn't this year
+	 */
+	function recordedDayDate($timestamp, $now = null) {
+		if ($timestamp <= 0) {
+			return '';
+		}
+		$thisYear = date('Y', ($now === null) ? time() : $now);
+		$date = dvruiMonthFirst() ? 'D M j' : 'D j M';
+		if (date('Y', $timestamp) != $thisYear) {
+			$date .= ' Y';
+		}
+		return date($date . ' H:i', $timestamp);
 	}
 
 	/*

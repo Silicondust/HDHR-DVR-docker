@@ -198,6 +198,72 @@ a.reload_page {
 #recorded_count {
   font-style: italic;
 }
+/* Latest recordings - newest series, above the filters (see recordedLatestList) */
+#recorded_latest {
+  margin: 10px 0 5px 0;
+}
+/* same cards as the series below, in one row that scrolls sideways with no scrollbar -
+ * the arrow overlays page through it. The "Recorded:" line takes the one engine line slot. */
+.recorded_latest_scroller {
+  position: relative;
+}
+.recorded_latest_list {
+  --engine-lines: 1;
+  display: flex;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 2.5px;   /* snap to the card's margin, so the first card sits at 0 */
+  scrollbar-width: none;
+  padding-bottom: 10px;   /* room for the cards' shadow */
+}
+.recorded_latest_list::-webkit-scrollbar {
+  display: none;
+}
+.recorded_latest_list .recorded_entry {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+.recorded_latest_arrow {
+  position: absolute;
+  top: 5px;
+  bottom: 15px;
+  width: 44px;
+  z-index: 2;
+  border: none;
+  padding: 0;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.recorded_latest_arrow[hidden] {
+  display: none;
+}
+.recorded_latest_arrow.left {
+  left: 0;
+  background: linear-gradient(to right, rgba(20, 28, 40, 0.95), rgba(20, 28, 40, 0.4));
+}
+.recorded_latest_arrow.right {
+  right: 0;
+  background: linear-gradient(to left, rgba(20, 28, 40, 0.95), rgba(20, 28, 40, 0.4));
+}
+.recorded_latest_arrow:hover,
+.recorded_latest_arrow:focus-visible {
+  opacity: 1;
+  color: #8fb3e0;
+}
+.recorded_latest_number {
+  color: #BBB;
+}
+.recorded_latest_when {
+  color: #DDD;
+  font-size: 0.8em;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .recorded_group {
   margin: 10px 0 5px 0;
 }
