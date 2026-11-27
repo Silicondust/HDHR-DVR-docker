@@ -7,6 +7,24 @@
 -->
 <html>
 	<head>
+		<!-- Tablets and phones: the layout is at least 1080px wide (#wrapper min-width).
+		     Without this, Android lays the page out 980px wide then zooms out to fit
+		     1080px, so 100vh (the page height) is shorter than the screen and the pages
+		     stop above the status bar. The page width is 1080px, or the screen's when
+		     that is wider - set again when the device is rotated. Desktop browsers
+		     ignore it. -->
+		<meta name="viewport" id="dvrui_viewport" content="width=1080"/>
+		<script type="text/javascript">
+			(function() {
+				var fit = function() {
+					var width = Math.max(1080, window.screen ? screen.width : 0);
+					document.getElementById('dvrui_viewport').setAttribute('content', 'width=' + width);
+				};
+				fit();
+				window.addEventListener('orientationchange', fit);
+				window.addEventListener('resize', fit);
+			})();
+		</script>
 		<link rel="icon" type="image/ico" href="./favicon.ico"/>
 		<title>[[pagetitle]]</title>
 		<style type="text/css" media="screen">@import "style/style.css";</style>
